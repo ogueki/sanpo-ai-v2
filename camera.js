@@ -4,9 +4,20 @@ const video   = document.getElementById('video');
 const canvas  = document.getElementById('canvas');
 const respEl  = document.getElementById('response');
 
-async function startCamera() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  video.srcObject = stream;
+async function startCamera(back = true) {
+  // ① 背面をリクエスト
+  const preferredConstraints = back
+    ? { video: { facingMode: { exact: 'environment' } } }
+    : { video: true };
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+    video.srcObject = stream;
+  } catch (err) {
+    // ② 背面が取れないブラウザは fallback でインカメ
+    if (back) return startCamera(false);
+    alert('カメラにアクセスできませんでした: ' + err.message);
+  }
 }
 
 async function captureAndSendToAI() {
@@ -39,4 +50,14 @@ function speak(text) {
   speechSynthesis.cancel();
   const uttr = new SpeechSynthesisUtterance(text);
   speechSynthesis.speak(uttr);
+}
+
+let useBack = true;
+function flipCamera() {
+  // 既存ストリームを止めてから再起動
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+  }
+  useBack = !useBack;
+  startCamera(useBack);
 }
