@@ -51,32 +51,26 @@ function flipCamera() {
 
 /* ---------- 画像キャプチャ＆AI呼び出し ---------- */
 async function captureAndSendToAI(extraText = '') {
-  warmUpSpeech();                                  // 保険：直接押された場合用
-
-  /* 1. フレーム取得 */
-  canvas.width = video.videoWidth;
+  canvas.width  = video.videoWidth;
   canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  /* 2. 画像を Base64 へ */
-  const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
-  const base64Image = await blobToBase64(blob);
+  const blob        = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+  const base64Image = await blobToBase64(blob);        // ← ここで作る
+  lastImageB64      = base64Image;                     // キャッシュ用（任意）
 
-  /* 3. OpenAI Vision API へ送信 */
-  const data = await fetch('/api/vision', {
+  const res = await fetch('/api/vision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // /chat, /vision どちらの fetch でも body に必ず sessionId を渡す
     body: JSON.stringify({
       sessionId: SESSION_ID,
-      imageBase64,
+      imageBase64: base64Image,                        // ← 同じ名で送る
       text: extraText
     })
-  }).then(r => r.json());
+  });
+  const { answer } = await res.json();
 
-  /* 4. 表示＆読み上げ */
-  const answer = data.answer ?? '応答がありません';
-  respEl.textContent = answer;
+  appendChat(extraText || '[画像質問]', answer);
   speak(answer);
 }
 
