@@ -112,7 +112,8 @@ function appendChat(q, a) {
 
 /* ---------- 補助関数 ---------- */
 function blobToBase64(blob) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
+    if (!blob) return reject(new Error('Capture failed: blob is null'));
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
     reader.readAsDataURL(blob);
