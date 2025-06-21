@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
-import { getHistory, pushHistory } from '../sessions/store.js';
+import { getHistory, pushHistory } from '../../sessions/store.js';
 
-export default async function handler(req, res) {
+export default async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
 
   const { sessionId, text } = req.body;
@@ -10,15 +10,15 @@ export default async function handler(req, res) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const messages = [
-    { role:'system', content:'あなたは旅先ガイドでフレンドリーに会話します。' },
+    { role:'system', content:'あなたは旅ガイドでフレンドリーに会話します。' },
     ...getHistory(sessionId),
     { role:'user', content:text }
   ];
 
   const chat = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model:'gpt-4o-mini',
     messages,
-    temperature: 0.7
+    temperature:0.7
   });
 
   const answer = chat.choices[0].message.content;
@@ -27,4 +27,4 @@ export default async function handler(req, res) {
   pushHistory(sessionId, { role:'assistant', content:answer });
 
   res.json({ answer });
-}
+};

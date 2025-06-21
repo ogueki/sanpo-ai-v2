@@ -1,7 +1,17 @@
-/* メモリ簡易ストア。後で Redis に置き換えても呼び出しは同じ */
-export const sessions = {};  // { id: { history: [] } }
+// ── 超シンプルなメモリストア ──
+//  later: Redis 等に差し替えても API はそのまま
 
-export function getHistory(id)   { return sessions[id]?.history ?? []; }
-export function pushHistory(id, msg) {
-  (sessions[id] ||= { history: [] }).history.push(msg);
-}
+const MAX_TURNS = 5;          // ← ここを変えれば保持長を調整
+export const sessions = {};   // { id: { history: [] } }
+
+/* 取得 */
+export const getHistory = (id) =>
+  sessions[id]?.history ?? [];
+
+/* 追加＆古いメッセージ自動削除 */
+export const pushHistory = (id, msg) => {
+  const s = sessions[id] ||= { history: [] };
+  s.history.push(msg);
+  // user + assistant で 1 ターンと数えて制限
+  while (s.history.length > MAX_TURNS * 2) s.history.shift();
+};

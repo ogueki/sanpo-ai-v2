@@ -66,10 +66,11 @@ async function captureAndSendToAI(extraText = '') {
   const data = await fetch('/api/vision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    // /chat, /vision どちらの fetch でも body に必ず sessionId を渡す
     body: JSON.stringify({
       sessionId: SESSION_ID,
-      imageBase64: base64Image,
-      text: extraText               // ←「あれなに？」などユーザ発話
+      imageBase64,
+      text: extraText
     })
   }).then(r => r.json());
 
@@ -79,7 +80,7 @@ async function captureAndSendToAI(extraText = '') {
   speak(answer);
 }
 
-const SESSION_ID = crypto.randomUUID();   // タブごとに一意で OK
+const SESSION_ID = crypto.randomUUID();  // タブごとに固定
 
 async function sendText() {
   const text = document.getElementById('userText').value.trim();
