@@ -32,6 +32,10 @@
     <button class="flip-btn" onclick="flipCamera()">カメラ切替</button>
     <button onclick="speak('こんにちは。聞こえますか？')">音声テスト</button>
   </div>
+  <div id="chat-box">
+    <input id="userText" type="text" placeholder="質問を入力…" />
+    <button onclick="sendText()">送信</button>
+  </div>
   <p id="response"></p>
 
 <script src="camera.js" defer></script>

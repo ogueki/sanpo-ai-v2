@@ -2,13 +2,13 @@
 const API_URL = '/api/vision';          // Vercel に合わせて相対パス
 
 /* ---------- 要素取得 ---------- */
-const video  = document.getElementById('video');
+const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const respEl = document.getElementById('response');
 
 /* ---------- SpeechSynthesis 初期化 ---------- */
 let voiceReady = false;
-let jpVoice    = null;
+let jpVoice = null;
 
 /* ボイス一覧が届いたら日本語ボイスを確定 */
 speechSynthesis.onvoiceschanged = () => {
@@ -50,29 +50,64 @@ function flipCamera() {
 }
 
 /* ---------- 画像キャプチャ＆AI呼び出し ---------- */
-async function captureAndSendToAI() {
+async function captureAndSendToAI(extraText = '') {
   warmUpSpeech();                                  // 保険：直接押された場合用
 
   /* 1. フレーム取得 */
-  canvas.width  = video.videoWidth;
+  canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
   /* 2. 画像を Base64 へ */
-  const blob        = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
   const base64Image = await blobToBase64(blob);
 
   /* 3. OpenAI Vision API へ送信 */
-  const data = await fetch(API_URL, {
+  const data = await fetch('/api/vision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageBase64: base64Image })
+    body: JSON.stringify({
+      sessionId: SESSION_ID,
+      imageBase64: base64Image,
+      text: extraText               // ←「あれなに？」などユーザ発話
+    })
   }).then(r => r.json());
 
   /* 4. 表示＆読み上げ */
   const answer = data.answer ?? '応答がありません';
   respEl.textContent = answer;
   speak(answer);
+}
+
+const SESSION_ID = crypto.randomUUID();   // タブごとに一意で OK
+
+async function sendText() {
+  const text = document.getElementById('userText').value.trim();
+  if (!text) return;
+
+  // 画像付きにする？キーワードで簡易判定
+  const needsVision = /あれ|これ|それ|写/.test(text);
+
+  let answer;
+  if (needsVision) {
+    await captureAndSendToAI(text);   // 既存関数を拡張（下で修正）
+    return;
+  } else {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SESSION_ID, text })
+    });
+    answer = (await res.json()).answer;
+  }
+
+  appendChat(text, answer);
+  speak(answer);
+}
+
+function appendChat(q, a) {
+  respEl.innerHTML += `<div class="bubble user">${q}</div>`;
+  respEl.innerHTML += `<div class="bubble ai">${a}</div>`;
 }
 
 /* ---------- 補助関数 ---------- */
@@ -92,6 +127,6 @@ function speak(text) {
 }
 
 /* ---------- グローバルへ公開（HTML から呼び出し） ---------- */
-window.startCamera        = startCamera;
+window.startCamera = startCamera;
 window.captureAndSendToAI = captureAndSendToAI;
-window.flipCamera         = flipCamera;
+window.flipCamera = flipCamera;
