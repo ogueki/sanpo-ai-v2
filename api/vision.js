@@ -1,9 +1,6 @@
 import OpenAI from 'openai';
 import { getHistory, pushHistory } from '../../sessions/store.js';
 
-// Vercel Edge Functions を使わない場合は下行を削除して OK
-export const config = { runtime: 'edge' };
-
 export default async function handler(req, res) {
   /* 1) POST 以外は拒否 */
   if (req.method !== 'POST') {
