@@ -51,6 +51,11 @@ function flipCamera() {
 
 /* ---------- 画像キャプチャ＆AI呼び出し ---------- */
 async function captureAndSendToAI(extraText = '') {
+  /* カメラがまだ準備出来ていない場合は待つ */
+  if (!video.videoWidth) {
+    alert('カメラが起動していません。まず「カメラ開始」を押してください');
+    return;
+  }
   canvas.width  = video.videoWidth;
   canvas.height = video.videoHeight;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
