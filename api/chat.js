@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { getHistory, pushHistory } from '../../sessions/store.js';
+import { getHistory, pushHistory } from '../sessions/store.js'; 
 
 export default async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();

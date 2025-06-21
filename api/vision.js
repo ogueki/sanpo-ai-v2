@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { getHistory, pushHistory } from '../../sessions/store.js';
+import { getHistory, pushHistory } from '../sessions/store.js'; 
 
 export default async function handler(req, res) {
   /* 1) POST 以外は拒否 */
