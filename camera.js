@@ -5,22 +5,22 @@ const SESSION_ID =
     const id = crypto?.randomUUID
       ? crypto.randomUUID()
       : 'ss-' + Date.now().toString(36) + '-' +
-        Math.random().toString(36).slice(2, 10);
+      Math.random().toString(36).slice(2, 10);
     localStorage.setItem('session-id', id);
     return id;
   })();
 
 /* ---------- 定数 & 要素取得 ---------- */
 const API_URL_VISION = '/api/vision';
-const API_URL_CHAT   = '/api/chat';
+const API_URL_CHAT = '/api/chat';
 
-const video  = document.getElementById('video');
+const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const respEl = document.getElementById('response');
 
 /* ---------- SpeechSynthesis 初期化 ---------- */
 let voiceReady = false;
-let jpVoice    = null;
+let jpVoice = null;
 
 speechSynthesis.onvoiceschanged = () => {
   jpVoice = speechSynthesis.getVoices().find(v => v.lang.startsWith('ja'));
@@ -58,7 +58,13 @@ function flipCamera() {
 }
 
 /* ---------- 画像キャプチャ＆送信 ---------- */
-let lastImageB64 = null;   // キャッシュ用（任意）
+let lastImageB64 = null;          // 直近の画像（Base64）
+let lastVisionTime = 0;             // Vision を呼んだ時刻（ms）
+
+/* 直近10秒以内に Vision を呼んだか判定 */
+function justUsedVision() {
+  return Date.now() - lastVisionTime < 10_000;
+}
 
 async function captureAndSendToAI(extraText = '') {
   if (!video.videoWidth) {
@@ -66,7 +72,7 @@ async function captureAndSendToAI(extraText = '') {
     return;
   }
   const SCALE = 0.4;
-  canvas.width  = video.videoWidth  * SCALE;
+  canvas.width = video.videoWidth * SCALE;
   canvas.height = video.videoHeight * SCALE;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -78,7 +84,7 @@ async function captureAndSendToAI(extraText = '') {
   const base64Image = await blobToBase64(blob);
   lastImageB64 = base64Image;
 
-  const res  = await fetch(API_URL_VISION, {
+  const res = await fetch(API_URL_VISION, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -94,6 +100,7 @@ async function captureAndSendToAI(extraText = '') {
     return;
   }
   const { answer } = JSON.parse(text);
+  lastVisionTime = Date.now();
   appendChat(extraText || '[画像質問]', answer);
   speak(answer);
 }
@@ -101,16 +108,17 @@ async function captureAndSendToAI(extraText = '') {
 /* ---------- テキスト送信 ---------- */
 async function sendText() {
   const input = document.getElementById('userText');
-  const text  = input.value.trim();
+  const text = input.value.trim();
   if (!text) return;
 
-  // 画像付き質問か簡易判定
-  const needsVision = /あれ|これ|それ|写|何色/.test(text);
+  // 画像を再送するか？（キーワード or 直近10秒以内）
+  const needsVision = /あれ|これ|それ|写|映|何色|家具/.test(text) || justUsedVision();
 
   if (needsVision) {
     // 同じフレームを再利用して Vision へ
+    // 1) キャッシュがあればそれを再送
     if (lastImageB64) {
-      await fetch(API_URL_VISION, {
+      const res = await fetch('/api/vision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -118,16 +126,17 @@ async function sendText() {
           imageBase64: lastImageB64,
           text
         })
-      }).then(r => r.json())
-        .then(({ answer }) => {
-          appendChat(text, answer);
-          speak(answer);
-        });
-    } else {
-      await captureAndSendToAI(text);
+      });
+      const { answer } = await res.json();
+      appendChat(text, answer);
+      speak(answer);
+      return;
     }
+    // 2) キャッシュが無い→新しく撮影
+    await captureAndSendToAI(text);
+    return;
   } else {
-    const res  = await fetch(API_URL_CHAT, {
+    const res = await fetch(API_URL_CHAT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: SESSION_ID, text })
@@ -163,7 +172,7 @@ function appendChat(q, a) {
 }
 
 /* ---------- グローバル公開 ---------- */
-window.startCamera        = startCamera;
+window.startCamera = startCamera;
 window.captureAndSendToAI = captureAndSendToAI;
-window.flipCamera         = flipCamera;
-window.sendText           = sendText;
+window.flipCamera = flipCamera;
+window.sendText = sendText;
