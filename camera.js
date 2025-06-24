@@ -105,6 +105,29 @@ async function captureAndSendToAI(extraText = '') {
   speak(answer);
 }
 
+const judgeCache = new Map();   // text → { ans, ts }
+
+async function askNeedsVision(text) {
+  // キャッシュ 30 秒
+  const c = judgeCache.get(text);
+  if (c && Date.now() - c.ts < 30_000) return c.ans;
+
+  try {
+    const r = await fetch('/api/judge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const yn = (await r.text()).trim() === 'yes';
+    judgeCache.set(text, { ans: yn, ts: Date.now() });
+    return yn;
+  } catch (e) {
+    console.warn('judge fallback', e);
+    // ネットワーク障害時は簡易正規表現で代用
+    return /写|映|何色|服|男|女|あれ|これ|それ/.test(text);
+  }
+}
+
 /* ---------- テキスト送信 ---------- */
 async function sendText() {
   const input = document.getElementById('userText');
@@ -112,7 +135,9 @@ async function sendText() {
   if (!text) return;
 
   // 画像を再送するか？（キーワード or 直近10秒以内）
-  const needsVision = /あれ|これ|それ|写|映|何色|家具/.test(text) || justUsedVision();
+  const needsVision =
+    (await askNeedsVision(text))       // 意味ベース判定
+    || justUsedVision();               // 直近10秒以内
 
   if (needsVision) {
     // 同じフレームを再利用して Vision へ
@@ -128,6 +153,9 @@ async function sendText() {
         })
       });
       const { answer } = await res.json();
+
+      lastVisionTime = Date.now();
+      
       appendChat(text, answer);
       speak(answer);
       return;
