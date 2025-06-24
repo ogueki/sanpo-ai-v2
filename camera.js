@@ -155,7 +155,7 @@ async function sendText() {
       const { answer } = await res.json();
 
       lastVisionTime = Date.now();
-      
+
       appendChat(text, answer);
       speak(answer);
       return;
