@@ -5,6 +5,12 @@ export default async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
 
   const { sessionId, text } = req.body;
+
+  console.log('Session ID:', sessionId);
+  console.log('Sessions object:', sessions);
+  console.log('Latest image exists:', !!getLatestImage(sessionId));
+  console.log('Descriptions:', getDescriptions(sessionId));
+
   if (!text) return res.status(400).json({ error: 'no text' });
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
