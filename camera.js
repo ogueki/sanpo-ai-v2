@@ -89,7 +89,7 @@ async function captureAndSendToAI(extraText = '') {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       sessionId: SESSION_ID,
-      imageBase64: base64Image,
+      image: base64Image,
       text: extraText
     })
   });
@@ -148,7 +148,7 @@ async function sendText() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: SESSION_ID,
-          imageBase64: lastImageB64,
+          image: lastImageB64,
           text
         })
       });
