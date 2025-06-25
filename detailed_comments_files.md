@@ -246,6 +246,7 @@ Thumbs.db
 
 ## チャットAPI
 
+```
 // HTML要素の取得（DOM操作用）
 const video = document.getElementById('video');      // ビデオ要素
 const canvas = document.getElementById('canvas');    // キャンバス要素
