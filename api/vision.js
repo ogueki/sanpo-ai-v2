@@ -15,11 +15,14 @@ app.post('/api/vision', async (req, res) => {
     res.header('Access-Control-Allow-Headers', 'Content-Type');
 
     try {
-        const { image, sessionId } = req.body;
+        const { image, sessionId, text } = req.body;
 
         if (!image || !sessionId) {
             return res.status(400).json({ error: '画像とセッションIDが必要です' });
         }
+
+        // ユーザーの質問があればそれを使用、なければデフォルトの質問
+        const userQuestion = text || "この画像に何が写っているか、簡潔に説明してください。";
 
         const response = await openai.chat.completions.create({
             model: "gpt-4-vision-preview",
@@ -27,7 +30,7 @@ app.post('/api/vision', async (req, res) => {
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "この画像に何が写っているか、簡潔に説明してください。" },
+                        { type: "text", text: userQuestion },
                         { type: "image_url", image_url: { url: image } }
                     ]
                 }

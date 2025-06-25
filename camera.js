@@ -99,10 +99,10 @@ async function captureAndSendToAI(extraText = '') {
     alert('サーバーエラー:\n' + text.slice(0, 120));
     return;
   }
-  const { answer } = JSON.parse(text);
+  const { description } = JSON.parse(text);
   lastVisionTime = Date.now();
-  appendChat(extraText || '[画像質問]', answer);
-  speak(answer);
+  appendChat(extraText || '[画像質問]', description);
+  speak(description);
 }
 
 const judgeCache = new Map();   // text → { ans, ts }
@@ -154,12 +154,12 @@ async function sendText() {
           text
         })
       });
-      const { answer } = await res.json();
+      const { description } = await res.json();
 
       lastVisionTime = Date.now();
 
-      appendChat(text, answer);
-      speak(answer);
+      appendChat(text, description);
+      speak(description);
       return;
     }
     // 2) キャッシュが無い→新しく撮影
