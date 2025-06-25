@@ -40,11 +40,9 @@ export default async (req, res) => {
 
   messages.push(userMessage);
 
-  // モデルを選択（画像がある場合はGPT-4V、ない場合はGPT-4o-mini）
-  const model = userMessage.content.length > 1 ? 'gpt-4-vision-preview' : 'gpt-4o-mini';
-
+  // gpt-4o-miniは画像とテキストの両方に対応
   const chat = await openai.chat.completions.create({
-    model: model,
+    model: 'gpt-4o-mini',
     messages: messages,
     temperature: 0.7,
     max_tokens: 500
