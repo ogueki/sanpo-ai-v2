@@ -135,8 +135,8 @@ async function captureAndSendToAI(extraText = '') {
   }
 
   try {
-    // 画像キャプチャ処理
-    const SCALE = 0.4;
+    // 画像キャプチャ処理（人物認識のため解像度向上）
+    const SCALE = 0.6;  // 40% → 60%に向上
     canvas.width = video.videoWidth * SCALE;
     canvas.height = video.videoHeight * SCALE;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
