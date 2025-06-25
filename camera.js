@@ -124,7 +124,7 @@ async function askNeedsVision(text) {
   } catch (e) {
     console.warn('judge fallback', e);
     // ネットワーク障害時は簡易正規表現で代用
-    return /写|映|何色|服|男|女|あれ|これ|それ/.test(text);
+    return /写|映|何色|服|男|女|あれ|これ|それ|^これ|^それ|^何[？?]?$/.test(text);
   }
 }
 
@@ -135,9 +135,11 @@ async function sendText() {
   if (!text) return;
 
   // 画像を再送するか？（キーワード or 直近10秒以内）
-  const needsVision =
-    (await askNeedsVision(text))       // 意味ベース判定
-    || justUsedVision();               // 直近10秒以内
+  const judgeResult = await askNeedsVision(text);
+  const recentVision = justUsedVision();
+  const needsVision = judgeResult || recentVision;
+  
+  console.log(`判定結果: "${text}" → judge: ${judgeResult}, recent: ${recentVision}, needs: ${needsVision}`);
 
   if (needsVision) {
     // 同じフレームを再利用して Vision へ
