@@ -11,8 +11,7 @@ const SESSION_ID =
   })();
 
 /* ---------- 定数 & 要素取得 ---------- */
-const API_URL_VISION = '/api/vision';
-const API_URL_CHAT = '/api/chat';
+const API_URL_UNIFIED = '/api/unified';  // 新しい統合API
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
@@ -46,7 +45,7 @@ async function startCamera(back = true) {
     const stream = await navigator.mediaDevices.getUserMedia(preferred);
     video.srcObject = stream;
   } catch (err) {
-    if (back) return startCamera(false);  // 背面失敗→インカメ
+    if (back) return startCamera(false);
     alert('カメラにアクセスできません: ' + err.message);
   }
 }
@@ -57,125 +56,148 @@ function flipCamera() {
   startCamera(useBack);
 }
 
-/* ---------- 画像キャプチャ＆送信 ---------- */
-let lastImageB64 = null;          // 直近の画像（Base64）
-let lastVisionTime = 0;             // Vision を呼んだ時刻（ms）
+/* ---------- 統合AI処理 ---------- */
+let lastImageB64 = null;  // 最新画像のキャッシュ（デバッグ用に保持）
+let processingRequest = false;  // 重複リクエスト防止
 
-/* 直近10秒以内に Vision を呼んだか判定 */
-function justUsedVision() {
-  return Date.now() - lastVisionTime < 10_000;
+/**
+ * 統合AIにリクエストを送信する共通関数
+ */
+async function sendToUnifiedAI(text, newImage = null) {
+  // 重複リクエスト防止
+  if (processingRequest) {
+    console.log('⚠️ Already processing request, skipping...');
+    return;
+  }
+
+  try {
+    processingRequest = true;
+    
+    // ローディング表示（オプション）
+    showLoadingIndicator();
+
+    console.log(`🚀 Sending to Unified AI - Text: "${text}", HasNewImage: ${!!newImage}`);
+
+    const requestBody = {
+      sessionId: SESSION_ID,
+      text: text.trim()
+    };
+
+    // 新しい画像がある場合のみ含める
+    if (newImage) {
+      requestBody.image = newImage;
+      lastImageB64 = newImage;  // キャッシュ更新
+    }
+
+    const response = await fetch(API_URL_UNIFIED, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const answer = data.answer;
+
+    console.log(`✅ Unified AI Response received`);
+
+    // チャットに表示
+    appendChat(text, answer);
+    
+    // 音声で読み上げ
+    speak(answer);
+
+  } catch (error) {
+    console.error('❌ Unified AI Error:', error);
+    
+    // エラーメッセージを表示
+    const errorMessage = '申し訳ありません。処理中にエラーが発生しました。もう一度お試しください。';
+    appendChat(text, errorMessage);
+    speak(errorMessage);
+    
+  } finally {
+    processingRequest = false;
+    hideLoadingIndicator();
+  }
 }
 
+/**
+ * 画像をキャプチャして統合AIに送信
+ */
 async function captureAndSendToAI(extraText = '') {
   if (!video.videoWidth) {
     alert('まず「カメラ開始」を押してください');
     return;
   }
-  const SCALE = 0.4;
-  canvas.width = video.videoWidth * SCALE;
-  canvas.height = video.videoHeight * SCALE;
-  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
-  if (!blob) {
-    alert('画像の取得に失敗しました');
-    return;
-  }
-  const base64Image = await blobToBase64(blob);
-  lastImageB64 = base64Image;
-
-  const res = await fetch(API_URL_VISION, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sessionId: SESSION_ID,
-      image: base64Image,
-      text: extraText
-    })
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    console.error('Vision 500 →', text);
-    alert('サーバーエラー:\n' + text.slice(0, 120));
-    return;
-  }
-  const { description } = JSON.parse(text);
-  lastVisionTime = Date.now();
-  appendChat(extraText || '[画像質問]', description);
-  speak(description);
-}
-
-const judgeCache = new Map();   // text → { ans, ts }
-
-async function askNeedsVision(text) {
-  // キャッシュ 30 秒
-  const c = judgeCache.get(text);
-  if (c && Date.now() - c.ts < 30_000) return c.ans;
 
   try {
-    const r = await fetch('/api/judge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
-    const yn = (await r.text()).trim() === 'yes';
-    judgeCache.set(text, { ans: yn, ts: Date.now() });
-    return yn;
-  } catch (e) {
-    console.warn('judge fallback', e);
-    // ネットワーク障害時は簡易正規表現で代用
-    return /写|映|何色|服|男|女|あれ|これ|それ|^これ|^それ|^何[？?]?$/.test(text);
+    // 画像キャプチャ処理
+    const SCALE = 0.4;
+    canvas.width = video.videoWidth * SCALE;
+    canvas.height = video.videoHeight * SCALE;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+    if (!blob) {
+      alert('画像の取得に失敗しました');
+      return;
+    }
+
+    const base64Image = await blobToBase64(blob);
+    
+    // 質問テキストを決定
+    const questionText = extraText || '景色を見せてもらいました！これについて教えてください。';
+    
+    // 統合AIに送信（新しい画像付き）
+    await sendToUnifiedAI(questionText, base64Image);
+
+  } catch (error) {
+    console.error('❌ Capture Error:', error);
+    alert('画像の処理中にエラーが発生しました');
   }
 }
 
-/* ---------- テキスト送信 ---------- */
+/**
+ * テキスト入力を統合AIに送信
+ */
 async function sendText() {
   const input = document.getElementById('userText');
   const text = input.value.trim();
+  
   if (!text) return;
 
-  // 画像を再送するか？（キーワード or 直近10秒以内）
-  const judgeResult = await askNeedsVision(text);
-  const recentVision = justUsedVision();
-  const needsVision = judgeResult || recentVision;
-  
-  console.log(`判定結果: "${text}" → judge: ${judgeResult}, recent: ${recentVision}, needs: ${needsVision}`);
-
-  if (needsVision) {
-    // 同じフレームを再利用して Vision へ
-    // 1) キャッシュがあればそれを再送
-    if (lastImageB64) {
-      const res = await fetch('/api/vision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: SESSION_ID,
-          image: lastImageB64,
-          text
-        })
-      });
-      const { description } = await res.json();
-
-      lastVisionTime = Date.now();
-
-      appendChat(text, description);
-      speak(description);
-      return;
-    }
-    // 2) キャッシュが無い→新しく撮影
-    await captureAndSendToAI(text);
-    return;
-  } else {
-    const res = await fetch(API_URL_CHAT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: SESSION_ID, text })
-    });
-    const { answer } = await res.json();
-    appendChat(text, answer);
-    speak(answer);
-  }
+  // 入力欄をクリア
   input.value = '';
+
+  // 統合AIに送信（画像判定は統合API側で自動実行）
+  await sendToUnifiedAI(text);
+}
+
+/* ---------- UI表示関数 ---------- */
+function showLoadingIndicator() {
+  // 簡単なローディング表示
+  const loadingDiv = document.createElement('div');
+  loadingDiv.id = 'loading-indicator';
+  loadingDiv.innerHTML = '<div class="bubble ai">🤔 考え中...</div>';
+  respEl.appendChild(loadingDiv);
+  respEl.scrollTop = respEl.scrollHeight;
+}
+
+function hideLoadingIndicator() {
+  const loadingEl = document.getElementById('loading-indicator');
+  if (loadingEl) {
+    loadingEl.remove();
+  }
+}
+
+function appendChat(q, a) {
+  respEl.innerHTML += `<div class="bubble user">${q}</div>`;
+  respEl.innerHTML += `<div class="bubble ai">${a}</div>`;
+  respEl.scrollTop = respEl.scrollHeight;  // 自動スクロール
 }
 
 /* ---------- 補助関数 ---------- */
@@ -195,11 +217,18 @@ function speak(text) {
   speechSynthesis.speak(uttr);
 }
 
-/* ---------- チャット表示 ---------- */
-function appendChat(q, a) {
-  respEl.innerHTML += `<div class="bubble user">${q}</div>`;
-  respEl.innerHTML += `<div class="bubble ai">${a}</div>`;
-}
+/* ---------- キーボードショートカット ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  const userTextInput = document.getElementById('userText');
+  
+  // Enterキーで送信
+  userTextInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendText();
+    }
+  });
+});
 
 /* ---------- グローバル公開 ---------- */
 window.startCamera = startCamera;

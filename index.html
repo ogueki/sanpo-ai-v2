@@ -3,41 +3,194 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI旅のおともプロトタイプ</title>
+  <title>AI旅のおとも - Claude型システム</title>
   <style>
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Helvetica Neue', Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 1.8em;
+    }
+    
     video {
       width: 100%;
+      max-width: 600px;
       border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      display: block;
+      margin: 0 auto 20px;
     }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+    }
+    
     button {
-      padding: 10px 20px;
-      margin-right: 10px;
+      padding: 12px 24px;
       border: none;
-      border-radius: 8px;
+      border-radius: 25px;
       color: white;
       font-weight: bold;
       cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 14px;
     }
-    .start-btn { background-color: #3b82f6; }
-    .send-btn { background-color: #10b981; }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .start-btn { background: linear-gradient(45deg, #3b82f6, #1e40af); }
+    .send-btn { background: linear-gradient(45deg, #10b981, #059669); }
+    .flip-btn { background: linear-gradient(45deg, #f59e0b, #d97706); }
+    .test-btn { background: linear-gradient(45deg, #8b5cf6, #7c3aed); }
+    
+    .chat-container {
+      background: #f8fafc;
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .bubble {
+      margin: 10px 0;
+      padding: 12px 18px;
+      border-radius: 18px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    
+    .bubble.user {
+      background: linear-gradient(45deg, #3b82f6, #1e40af);
+      color: white;
+      margin-left: auto;
+      text-align: right;
+    }
+    
+    .bubble.ai {
+      background: white;
+      color: #333;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    #userText {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 25px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.3s ease;
+    }
+    
+    #userText:focus {
+      border-color: #3b82f6;
+    }
+    
+    .send-text-btn {
+      background: linear-gradient(45deg, #10b981, #059669);
+      padding: 12px 20px;
+      border-radius: 25px;
+    }
+    
+    /* ローディングアニメーション */
+    .loading {
+      opacity: 0.7;
+    }
+    
+    .loading .bubble.ai {
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+    
+    /* レスポンシブ対応 */
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      
+      .button-group {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      button {
+        width: 200px;
+      }
+      
+      .input-group {
+        flex-direction: column;
+      }
+      
+      #userText {
+        margin-bottom: 10px;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>AI旅のおともプロトタイプ（Vanilla JS版）2</h1>
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" style="display: none;"></canvas>
-  <div>
-    <button class="start-btn" onclick="startCamera()">カメラ開始</button>
-    <button class="send-btn" onclick="captureAndSendToAI()">景色を送る</button>
-    <button class="flip-btn" onclick="flipCamera()">カメラ切替</button>
-    <button onclick="speak('こんにちは。聞こえますか？')">音声テスト</button>
+  <div class="container">
+    <h1>🌟 AI旅のおとも - Claude型システム 🌟</h1>
+    
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display: none;"></canvas>
+    
+    <div class="button-group">
+      <button class="start-btn" onclick="startCamera()">📹 カメラ開始</button>
+      <button class="send-btn" onclick="captureAndSendToAI()">📸 景色を送る</button>
+      <button class="flip-btn" onclick="flipCamera()">🔄 カメラ切替</button>
+      <button class="test-btn" onclick="speak('こんにちは。聞こえますか？')">🔊 音声テスト</button>
+    </div>
+    
+    <div class="chat-container">
+      <div id="response">
+        <div class="bubble ai">
+          👋 こんにちは！AI旅のガイドです。<br>
+          カメラを開始して、景色を撮影するか、何でも質問してくださいね！
+        </div>
+      </div>
+    </div>
+    
+    <div class="input-group">
+      <input id="userText" type="text" placeholder="何でも質問してください... (Enterで送信)" />
+      <button class="send-text-btn" onclick="sendText()">💬 送信</button>
+    </div>
   </div>
-  <div id="chat-box">
-    <input id="userText" type="text" placeholder="質問を入力…" />
-    <button onclick="sendText()">送信</button>
-  </div>
-  <p id="response"></p>
 
-<script src="camera.js" defer></script>
+  <script src="camera.js" defer></script>
 </body>
 </html>
