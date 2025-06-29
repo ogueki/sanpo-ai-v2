@@ -56,7 +56,117 @@ function flipCamera() {
   startCamera(useBack);
 }
 
-/* ---------- 統合AI処理 ---------- */
+/* ---------- 音声認識機能 ---------- */
+let recognition = null;
+let isListening = false;
+
+// 音声認識の初期化
+function initSpeechRecognition() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    console.warn('⚠️ 音声認識がサポートされていません');
+    return false;
+  }
+  
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  
+  // 音声認識の設定
+  recognition.lang = 'ja-JP';              // 日本語
+  recognition.continuous = false;          // 一度に一つの発話
+  recognition.interimResults = false;      // 最終結果のみ
+  recognition.maxAlternatives = 1;         // 候補は1つ
+  
+  // 音声認識イベント
+  recognition.onstart = () => {
+    console.log('🎤 音声認識開始');
+    isListening = true;
+    updateMicButton(true);
+    showListeningIndicator();
+  };
+  
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    console.log(`🎤 音声認識結果: "${transcript}"`);
+    
+    // 入力欄に結果を設定
+    const input = document.getElementById('userText');
+    input.value = transcript;
+    
+    // 自動送信
+    sendText();
+  };
+  
+  recognition.onerror = (event) => {
+    console.error('❌ 音声認識エラー:', event.error);
+    isListening = false;
+    updateMicButton(false);
+    hideListeningIndicator();
+    
+    // エラーメッセージを表示
+    if (event.error === 'no-speech') {
+      alert('音声が検出されませんでした。もう一度お試しください。');
+    } else if (event.error === 'not-allowed') {
+      alert('マイクへのアクセスが許可されていません。ブラウザの設定を確認してください。');
+    } else {
+      alert(`音声認識エラー: ${event.error}`);
+    }
+  };
+  
+  recognition.onend = () => {
+    console.log('🎤 音声認識終了');
+    isListening = false;
+    updateMicButton(false);
+    hideListeningIndicator();
+  };
+  
+  return true;
+}
+
+// 音声入力開始/停止
+function toggleSpeechInput() {
+  if (!recognition) {
+    if (!initSpeechRecognition()) {
+      alert('音声認識がサポートされていません');
+      return;
+    }
+  }
+  
+  if (isListening) {
+    recognition.stop();
+  } else {
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error('❌ 音声認識開始エラー:', error);
+      alert('音声認識を開始できませんでした');
+    }
+  }
+}
+
+// マイクボタンの表示更新
+function updateMicButton(listening) {
+  const micButton = document.getElementById('micButton');
+  if (micButton) {
+    micButton.textContent = listening ? '🔴 停止' : '🎤 音声入力';
+    micButton.className = listening ? 'mic-btn listening' : 'mic-btn';
+  }
+}
+
+// 音声認識中の表示
+function showListeningIndicator() {
+  const indicator = document.createElement('div');
+  indicator.id = 'listening-indicator';
+  indicator.innerHTML = '<div class="bubble ai listening">🎤 音声を聞いています...</div>';
+  respEl.appendChild(indicator);
+  respEl.scrollTop = respEl.scrollHeight;
+}
+
+function hideListeningIndicator() {
+  const indicator = document.getElementById('listening-indicator');
+  if (indicator) {
+    indicator.remove();
+  }
+}
 let lastImageB64 = null;  // 最新画像のキャッシュ（デバッグ用に保持）
 let processingRequest = false;  // 重複リクエスト防止
 
@@ -235,3 +345,4 @@ window.startCamera = startCamera;
 window.captureAndSendToAI = captureAndSendToAI;
 window.flipCamera = flipCamera;
 window.sendText = sendText;
+window.toggleSpeechInput = toggleSpeechInput;

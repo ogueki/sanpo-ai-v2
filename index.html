@@ -123,18 +123,22 @@
       border-radius: 25px;
     }
     
-    /* ローディングアニメーション */
-    .loading {
-      opacity: 0.7;
+    .mic-btn { 
+      background: linear-gradient(45deg, #ef4444, #dc2626); 
     }
     
-    .loading .bubble.ai {
-      animation: pulse 1.5s infinite;
+    .mic-btn.listening {
+      background: linear-gradient(45deg, #ff0000, #cc0000);
+      animation: pulse 1s infinite;
     }
     
     @keyframes pulse {
-      0%, 100% { opacity: 0.7; }
-      50% { opacity: 1; }
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    
+    .listening .bubble.ai {
+      animation: pulse 1.5s infinite;
     }
     
     /* レスポンシブ対応 */
@@ -187,6 +191,7 @@
     
     <div class="input-group">
       <input id="userText" type="text" placeholder="何でも質問してください... (Enterで送信)" />
+      <button id="micButton" class="mic-btn" onclick="toggleSpeechInput()">🎤 音声入力</button>
       <button class="send-text-btn" onclick="sendText()">💬 送信</button>
     </div>
   </div>
