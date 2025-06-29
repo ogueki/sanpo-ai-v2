@@ -1,3 +1,6 @@
+console.log(`🔍 [Unified Debug] image exists: ${!!image}, sessionId: ${sessionId}`);
+
+
 // api/unified.js - Claude型統合APIシステム
 import OpenAI from 'openai';
 import { getHistory, pushHistory, getLatestImage, getDescriptions, addImageAndDescription } from '../sessions/store.js';
