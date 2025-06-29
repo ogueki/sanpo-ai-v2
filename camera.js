@@ -60,7 +60,7 @@ function flipCamera() {
 let recognition = null;
 let isListening = false;
 
-// 音声認識の初期化
+// 音声認識の初期化（スマホ対応強化）
 function initSpeechRecognition() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
     console.warn('⚠️ 音声認識がサポートされていません');
@@ -70,11 +70,20 @@ function initSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
   
-  // 音声認識の設定
+  // 音声認識の設定（スマホ向け調整）
   recognition.lang = 'ja-JP';              // 日本語
   recognition.continuous = false;          // 一度に一つの発話
   recognition.interimResults = false;      // 最終結果のみ
   recognition.maxAlternatives = 1;         // 候補は1つ
+  
+  // スマホ向け追加設定
+  if (isMobileDevice()) {
+    recognition.lang = 'ja-JP';
+    // iOSの場合は短いタイムアウト
+    if (isIOS()) {
+      recognition.grammars = undefined;
+    }
+  }
   
   // 音声認識イベント
   recognition.onstart = () => {
@@ -102,14 +111,8 @@ function initSpeechRecognition() {
     updateMicButton(false);
     hideListeningIndicator();
     
-    // エラーメッセージを表示
-    if (event.error === 'no-speech') {
-      alert('音声が検出されませんでした。もう一度お試しください。');
-    } else if (event.error === 'not-allowed') {
-      alert('マイクへのアクセスが許可されていません。ブラウザの設定を確認してください。');
-    } else {
-      alert(`音声認識エラー: ${event.error}`);
-    }
+    // スマホ向けエラーメッセージ
+    handleSpeechError(event.error);
   };
   
   recognition.onend = () => {
@@ -122,11 +125,57 @@ function initSpeechRecognition() {
   return true;
 }
 
-// 音声入力開始/停止
-function toggleSpeechInput() {
+// デバイス判定関数
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+// スマホ向けエラーハンドリング
+function handleSpeechError(error) {
+  let message = '';
+  
+  switch (error) {
+    case 'service-not-allowed':
+    case 'not-allowed':
+      if (location.protocol !== 'https:') {
+        message = '音声認識にはHTTPS接続が必要です。';
+      } else {
+        message = 'マイクのアクセスが拒否されました。\nブラウザの設定を確認して、このサイトのマイクアクセスを許可してください。';
+      }
+      break;
+    case 'no-speech':
+      message = '音声が検出されませんでした。静かな環境でもう一度お試しください。';
+      break;
+    case 'audio-capture':
+      message = 'マイクにアクセスできません。他のアプリがマイクを使用していないか確認してください。';
+      break;
+    case 'network':
+      message = 'ネットワークエラーが発生しました。接続を確認してください。';
+      break;
+    default:
+      message = `音声認識エラー: ${error}\n${isMobileDevice() ? 'スマホでは音声認識が制限される場合があります。' : ''}`;
+  }
+  
+  alert(message);
+}
+
+// 音声入力開始/停止（改良版）
+async function toggleSpeechInput() {
+  // 事前準備確認
+  const prepared = await prepareSpeechInput();
+  if (!prepared) return;
+  
   if (!recognition) {
     if (!initSpeechRecognition()) {
-      alert('音声認識がサポートされていません');
+      if (isMobileDevice()) {
+        alert('❌ このブラウザでは音声認識がサポートされていません。\n\n推奨:\n• iPhone: Safari\n• Android: Chrome');
+      } else {
+        alert('音声認識がサポートされていません');
+      }
       return;
     }
   }
@@ -138,12 +187,53 @@ function toggleSpeechInput() {
       recognition.start();
     } catch (error) {
       console.error('❌ 音声認識開始エラー:', error);
-      alert('音声認識を開始できませんでした');
+      
+      if (isMobileDevice()) {
+        alert('🎤 音声認識を開始できませんでした。\n\n📱 スマホでのヒント:\n1. ブラウザ設定でマイクを許可\n2. 他のアプリでマイクを使用していないか確認\n3. ページを再読み込みして再試行');
+      } else {
+        alert('音声認識を開始できませんでした');
+      }
     }
   }
 }
 
-// マイクボタンの表示更新
+/* ---------- マイクアクセス確認 ---------- */
+// マイクアクセス許可の事前確認
+async function checkMicrophonePermission() {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return false;
+    }
+    
+    // 短時間だけマイクアクセスをテスト
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop()); // すぐに停止
+    return true;
+  } catch (error) {
+    console.log('マイクアクセステスト失敗:', error);
+    return false;
+  }
+}
+
+// 音声入力前の準備確認
+async function prepareSpeechInput() {
+  // HTTPS チェック
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    alert('🔒 音声認識にはHTTPS接続が必要です。\n\nVercelにデプロイされたサイトをご利用ください。');
+    return false;
+  }
+  
+  // マイクアクセス確認
+  const micAllowed = await checkMicrophonePermission();
+  if (!micAllowed) {
+    const userConfirm = confirm('🎤 マイクアクセスが必要です。\n\nブラウザでマイクアクセスを許可しますか？');
+    if (!userConfirm) {
+      return false;
+    }
+  }
+  
+  return true;
+}
 function updateMicButton(listening) {
   const micButton = document.getElementById('micButton');
   if (micButton) {
