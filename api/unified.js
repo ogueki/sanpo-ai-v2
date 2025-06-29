@@ -1,4 +1,4 @@
-// api/unified.js - Claude型統合APIシステム
+// api/unified.js - Claude型統合APIシステム（デバッグ版）
 import OpenAI from 'openai';
 import { getHistory, pushHistory, getLatestImage, getDescriptions, addImageAndDescription } from '../sessions/store.js';
 
@@ -6,12 +6,15 @@ import { getHistory, pushHistory, getLatestImage, getDescriptions, addImageAndDe
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export default async (req, res) => {
+  console.log('🎯 [Unified] API呼び出し開始!');
+  
   if (req.method !== 'POST') return res.status(405).end();
 
   try {
+    console.log('🎯 [Unified] POST処理開始!');
+    
     const { sessionId, text, image } = req.body;
-
-    console.log(`🔍 [Unified Debug] image exists: ${!!image}, sessionId: ${sessionId}`); 
+    console.log(`🎯 [Unified Debug] image exists: ${!!image}, sessionId: ${sessionId}`);
 
     // 必須パラメータチェック
     if (!sessionId || !text) {
