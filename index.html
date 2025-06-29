@@ -101,6 +101,7 @@
       display: flex;
       gap: 10px;
       align-items: center;
+      margin-bottom: 15px;
     }
     
     #userText {
@@ -117,28 +118,55 @@
       border-color: #3b82f6;
     }
     
+    .record-btn {
+      background: linear-gradient(45deg, #10b981, #059669);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 25px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .record-btn.recording {
+      background: linear-gradient(45deg, #ef4444, #dc2626);
+      animation: pulse 1s infinite;
+    }
+    
+    .record-btn:hover {
+      transform: translateY(-2px);
+    }
+    
     .send-text-btn {
       background: linear-gradient(45deg, #10b981, #059669);
       padding: 12px 20px;
       border-radius: 25px;
     }
     
-    .mic-btn { 
-      background: linear-gradient(45deg, #ef4444, #dc2626); 
+    .quick-questions {
+      margin-top: 15px;
     }
     
-    .mic-btn.listening {
-      background: linear-gradient(45deg, #ff0000, #cc0000);
-      animation: pulse 1s infinite;
+    .quick-btn {
+      background: linear-gradient(45deg, #f3f4f6, #e5e7eb);
+      color: #374151;
+      border: 1px solid #d1d5db;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .quick-btn:hover {
+      background: linear-gradient(45deg, #3b82f6, #1e40af);
+      color: white;
+      transform: translateY(-1px);
     }
     
     @keyframes pulse {
       0%, 100% { transform: scale(1); }
       50% { transform: scale(1.05); }
-    }
-    
-    .listening .bubble.ai {
-      animation: pulse 1.5s infinite;
     }
     
     /* レスポンシブ対応 */
@@ -158,10 +186,15 @@
       
       .input-group {
         flex-direction: column;
+        gap: 10px;
       }
       
       #userText {
-        margin-bottom: 10px;
+        margin-bottom: 0;
+      }
+      
+      .record-btn, .send-text-btn {
+        width: 100%;
       }
     }
   </style>
@@ -184,15 +217,29 @@
       <div id="response">
         <div class="bubble ai">
           👋 こんにちは！AI旅のガイドです。<br>
-          カメラを開始して、景色を撮影するか、何でも質問してくださいね！
+          カメラを開始して、景色を撮影するか、何でも質問してくださいね！<br>
+          🎤 音声録音も利用できます！
         </div>
       </div>
     </div>
     
     <div class="input-group">
       <input id="userText" type="text" placeholder="何でも質問してください... (Enterで送信)" />
-      <button id="micButton" class="mic-btn" onclick="toggleSpeechInput()">🎤 音声入力</button>
+      <button id="recordButton" class="record-btn" onclick="toggleAudioRecording()">🎤 音声録音</button>
       <button class="send-text-btn" onclick="sendText()">💬 送信</button>
+    </div>
+    
+    <!-- 定型質問ボタン -->
+    <div class="quick-questions">
+      <div style="font-weight: bold; color: #333; margin-bottom: 8px; font-size: 14px;">💬 よくある質問:</div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+        <button class="quick-btn" onclick="quickQuestion('これは何ですか？')">🤔 これは何？</button>
+        <button class="quick-btn" onclick="quickQuestion('詳しく教えて')">📖 詳しく教えて</button>
+        <button class="quick-btn" onclick="quickQuestion('いつ建てられましたか？')">🏗️ いつ建てられた？</button>
+        <button class="quick-btn" onclick="quickQuestion('歴史を教えて')">📚 歴史は？</button>
+        <button class="quick-btn" onclick="quickQuestion('近くの観光スポットは？')">🗺️ 周辺スポット</button>
+        <button class="quick-btn" onclick="quickQuestion('おすすめの時間帯は？')">⏰ おすすめ時間</button>
+      </div>
     </div>
   </div>
 
