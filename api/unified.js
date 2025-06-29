@@ -48,7 +48,9 @@ export default async (req, res) => {
 
     // 新しい画像がある場合は保存
     if (image) {
+      console.log(`📸 [Unified] 画像保存開始 session: ${sessionId}`);
       addImageAndDescription(sessionId, image, answer);
+      console.log(`✅ [Unified] 画像保存完了`);
     }
 
     // 会話履歴に保存

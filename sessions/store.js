@@ -26,16 +26,26 @@ export const pushHistory = (id, msg) => {
   while (s.history.length > MAX_TURNS * 2) s.history.shift();
 };
 
-/* 画像と説明を追加 */
+/* 画像と説明を追加（デバッグ版） */
 export const addImageAndDescription = (id, image, description) => {
+  console.log(`📝 [Store] addImageAndDescription called for session: ${id}`);
+  
   const s = sessions[id] ||= { history: [], images: [], descriptions: [] };
+  
+  if (Object.keys(sessions).length === 1 && sessions[id]) {
+    console.log(`🆕 [Store] 新しいセッション作成: ${id}`);
+  }
+  
   s.images.push({
-    data: image,
-    timestamp: new Date().toISOString()
+    data: image,                              
+    timestamp: new Date().toISOString()       
   });
-  s.descriptions.push(description);
+  
+  s.descriptions.push(description);    
   
   // 古い画像を削除（メモリ節約のため最新5枚まで保持）
-  while (s.images.length > 5) s.images.shift();
-  while (s.descriptions.length > 5) s.descriptions.shift();
+  while (s.images.length > 5) s.images.shift();           
+  while (s.descriptions.length > 5) s.descriptions.shift(); 
+  
+  console.log(`✅ [Store] セッション保存完了. 画像数: ${s.images.length}, 説明数: ${s.descriptions.length}`);
 };
