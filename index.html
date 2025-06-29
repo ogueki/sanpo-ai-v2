@@ -163,7 +163,15 @@
       color: white;
       transform: translateY(-1px);
     }
-    
+
+    .reset-btn { 
+      background: linear-gradient(45deg, #ef4444, #dc2626); 
+    }
+
+    .reset-btn:hover {
+      background: linear-gradient(45deg, #dc2626, #b91c1c);
+    }
+        
     @keyframes pulse {
       0%, 100% { transform: scale(1); }
       50% { transform: scale(1.05); }
@@ -211,6 +219,7 @@
       <button class="send-btn" onclick="captureAndSendToAI()">📸 景色を送る</button>
       <button class="flip-btn" onclick="flipCamera()">🔄 カメラ切替</button>
       <button class="test-btn" onclick="speak('こんにちは。聞こえますか？')">🔊 音声テスト</button>
+      <button class="reset-btn" onclick="resetSession()">🗑️ リセット</button>
     </div>
     
     <div class="chat-container">

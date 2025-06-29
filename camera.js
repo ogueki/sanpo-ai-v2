@@ -370,6 +370,69 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+/* ---------- セッションリセット機能 ---------- */
+// セッションをリセットする関数
+async function resetSession() {
+  // 確認ダイアログ
+  const confirmed = confirm('🗑️ 記憶をリセットしますか？\n\n• 撮影した画像の情報\n• 会話履歴\n• AI の記憶\n\nすべてクリアされます。');
+  
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    showLoadingIndicator('🗑️ リセット中...');
+
+    console.log('🗑️ セッションリセット開始');
+
+    // Reset APIに送信
+    const response = await fetch('/api/reset-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SESSION_ID })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success) {
+      console.log('✅ セッションリセット成功');
+      
+      // フロントエンド側のキャッシュもクリア
+      lastImageB64 = null;
+      
+      // チャット履歴をクリア
+      respEl.innerHTML = `
+        <div class="bubble ai">
+          🗑️ リセット完了！新しい会話を始めましょう。<br>
+          カメラを開始して、景色を撮影するか、何でも質問してくださいね！
+        </div>
+      `;
+      
+      // 入力欄もクリア
+      const input = document.getElementById('userText');
+      if (input) input.value = '';
+      
+      hideLoadingIndicator();
+      
+      // 音声で通知
+      speak('リセット完了しました。新しい会話を始めましょう。');
+      
+    } else {
+      throw new Error(result.error || 'リセットに失敗しました');
+    }
+
+  } catch (error) {
+    console.error('❌ セッションリセットエラー:', error);
+    hideLoadingIndicator();
+    alert(`リセットエラー: ${error.message}`);
+  }
+}
+
 /* ---------- グローバル公開 ---------- */
 window.startCamera = startCamera;
 window.captureAndSendToAI = captureAndSendToAI;
@@ -377,3 +440,4 @@ window.flipCamera = flipCamera;
 window.sendText = sendText;
 window.quickQuestion = quickQuestion;
 window.toggleAudioRecording = toggleAudioRecording;
+window.resetSession = resetSession; 
