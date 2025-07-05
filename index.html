@@ -288,6 +288,13 @@
       <video id="video" autoplay playsinline></video>
     </div>
     <canvas id="canvas" style="display: none;"></canvas>
+
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="adjustZoom('out')">➖</button>
+      <span id="zoom-display">100%</span>
+      <button class="zoom-btn" onclick="adjustZoom('in')">➕</button>
+      <button class="zoom-reset" onclick="resetZoom()">🎯 リセット</button>
+    </div>
     
     <div class="button-group">
       <button class="start-btn" onclick="startCamera()">📹 カメラ開始</button>
@@ -295,14 +302,6 @@
       <button class="flip-btn" onclick="flipCamera()">🔄 カメラ切替</button>
       <button class="test-btn" onclick="speak('こんにちは。聞こえますか？')">🔊 音声テスト</button>
       <button class="reset-btn" onclick="resetSession()">🗑️ リセット</button>
-    </div>
-    
-    <!-- ズームコントロール追加 -->
-    <div class="zoom-controls">
-      <button class="zoom-btn" onclick="adjustZoom('out')">🔍➖</button>
-      <span id="zoom-display">100%</span>
-      <button class="zoom-btn" onclick="adjustZoom('in')">🔍➕</button>
-      <button class="zoom-reset" onclick="resetZoom()">🎯 リセット</button>
     </div>
     
     <div class="chat-container">
