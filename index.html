@@ -171,6 +171,76 @@
     .reset-btn:hover {
       background: linear-gradient(45deg, #dc2626, #b91c1c);
     }
+
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      margin: 15px 0;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+    }
+
+    .zoom-btn {
+      background: linear-gradient(45deg, #6366f1, #4f46e5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .zoom-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .zoom-reset {
+      background: linear-gradient(45deg, #64748b, #475569);
+      color: white;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    #zoom-display {
+      font-weight: bold;
+      font-size: 16px;
+      color: #333;
+      min-width: 60px;
+      text-align: center;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 15px;
+      border: 2px solid #e2e8f0;
+    }
+
+    /* ビデオ要素のズーム用スタイル */
+    #video {
+      transition: transform 0.3s ease;
+      transform-origin: center center;
+    }
+
+    /* レスポンシブ対応 */
+    @media (max-width: 600px) {
+      .zoom-controls {
+        gap: 10px;
+      }
+      
+      .zoom-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 14px;
+      }
+    }
         
     @keyframes pulse {
       0%, 100% { transform: scale(1); }
@@ -220,6 +290,12 @@
       <button class="flip-btn" onclick="flipCamera()">🔄 カメラ切替</button>
       <button class="test-btn" onclick="speak('こんにちは。聞こえますか？')">🔊 音声テスト</button>
       <button class="reset-btn" onclick="resetSession()">🗑️ リセット</button>
+    </div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="adjustZoom('out')">🔍➖</button>
+      <span id="zoom-display">100%</span>
+      <button class="zoom-btn" onclick="adjustZoom('in')">🔍➕</button>
+      <button class="zoom-reset" onclick="resetZoom()">🎯 リセット</button>
     </div>
     
     <div class="chat-container">

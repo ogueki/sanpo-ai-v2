@@ -1,3 +1,9 @@
+/* ---------- ズーム機能 ---------- */
+let currentZoom = 1;
+const maxZoom = 3;
+const minZoom = 1;
+const zoomStep = 0.2;
+
 /* ---------- セッション ID（ブラウザごとに固定） ---------- */
 const SESSION_ID =
   localStorage.getItem('session-id') ||
@@ -135,11 +141,24 @@ async function captureAndSendToAI(extraText = '') {
   }
 
   try {
-    // 画像キャプチャ処理（人物認識のため解像度向上）
-    const SCALE = 0.6;  // 60%スケール（人物認識改善）
+    // ズーム時は解像度を少し上げる
+    const SCALE = currentZoom > 1.5 ? 0.8 : 0.6;
     canvas.width = video.videoWidth * SCALE;
     canvas.height = video.videoHeight * SCALE;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // ズーム情報を考慮してcanvasに描画
+    const ctx = canvas.getContext('2d');
+    
+    // ズームされた状態を再現
+    ctx.save();
+    ctx.scale(currentZoom, currentZoom);
+    
+    // 中央寄せで描画
+    const offsetX = -(video.videoWidth * (currentZoom - 1)) / (2 * currentZoom);
+    const offsetY = -(video.videoHeight * (currentZoom - 1)) / (2 * currentZoom);
+    
+    ctx.drawImage(video, offsetX, offsetY, video.videoWidth, video.videoHeight);
+    ctx.restore();
 
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
     if (!blob) {
@@ -149,8 +168,15 @@ async function captureAndSendToAI(extraText = '') {
 
     const base64Image = await blobToBase64(blob);
     
-    // 質問テキストを決定
-    const questionText = extraText || '景色を見せてもらいました！これについて教えてください。';
+    // ズーム情報をAIに伝える
+    let questionText;
+    if (extraText) {
+      questionText = extraText;
+    } else if (currentZoom > 1.3) {
+      questionText = `ズーム${currentZoom}倍で詳細を撮影しました！細かい部分や文字があれば読み取って詳しく教えてください。`;
+    } else {
+      questionText = '景色を見せてもらいました！これについて教えてください。';
+    }
     
     // 統合AIに送信（新しい画像付き）
     await sendToUnifiedAI(questionText, base64Image);
@@ -433,6 +459,41 @@ async function resetSession() {
   }
 }
 
+/* ---------- ズーム機能 ---------- */
+function adjustZoom(direction) {
+  if (direction === 'in' && currentZoom < maxZoom) {
+    currentZoom += zoomStep;
+  } else if (direction === 'out' && currentZoom > minZoom) {
+    currentZoom -= zoomStep;
+  }
+  
+  // 小数点以下を丸める
+  currentZoom = Math.round(currentZoom * 10) / 10;
+  
+  applyZoomToVideo();
+  updateZoomDisplay();
+  
+  console.log(`🔍 Zoom applied: ${currentZoom}x`);
+}
+
+function resetZoom() {
+  currentZoom = 1;
+  applyZoomToVideo();
+  updateZoomDisplay();
+  console.log('🎯 Zoom reset to 1x');
+}
+
+function applyZoomToVideo() {
+  video.style.transform = `scale(${currentZoom})`;
+}
+
+function updateZoomDisplay() {
+  const zoomDisplay = document.getElementById('zoom-display');
+  if (zoomDisplay) {
+    zoomDisplay.textContent = `${Math.round(currentZoom * 100)}%`;
+  }
+}
+
 /* ---------- グローバル公開 ---------- */
 window.startCamera = startCamera;
 window.captureAndSendToAI = captureAndSendToAI;
@@ -441,3 +502,5 @@ window.sendText = sendText;
 window.quickQuestion = quickQuestion;
 window.toggleAudioRecording = toggleAudioRecording;
 window.resetSession = resetSession; 
+window.adjustZoom = adjustZoom;
+window.resetZoom = resetZoom;
