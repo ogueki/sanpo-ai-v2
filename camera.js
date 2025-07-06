@@ -173,9 +173,9 @@ async function captureAndSendToAI(extraText = '') {
     if (extraText) {
       questionText = extraText;
     } else if (currentZoom > 1.3) {
-      questionText = `ズーム${currentZoom}倍で詳細を撮影しました！細かい部分や文字があれば読み取って詳しく教えてください。`;
+      questionText = `写真を送信しました。`;
     } else {
-      questionText = '景色を見せてもらいました！これについて教えてください。';
+      questionText = '写真を送信しました。';
     }
     
     // 統合AIに送信（新しい画像付き）
