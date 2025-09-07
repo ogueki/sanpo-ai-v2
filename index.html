@@ -182,62 +182,28 @@
         soundEnabled = !soundEnabled;
         
         if (soundEnabled) {
-          // 音声を有効化
           if (window.enableSpeech) {
-            const success = window.enableSpeech();
-            if (success) {
-              toast('🔉 音声ON');
-              btnSound.querySelector('span').textContent = '🔉';
-              
-              // テスト音声を再生
-              setTimeout(() => {
-                if (window.testSpeech) {
-                  window.testSpeech();
-                }
-              }, 500);
-            } else {
-              toast('⚠️ 音声が利用できません');
-              soundEnabled = false;
-            }
+            window.enableSpeech();
           }
+          toast('🔉 音声ON');
+          btnSound.querySelector('span').textContent = '🔉';
         } else {
-          // 音声を無効化
-          if (window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-          }
           toast('🔇 音声OFF');
           btnSound.querySelector('span').textContent = '🔇';
         }
       });
     }
     
-    // デバッグ用：コンソールから音声テスト可能に
-    window.debugSpeech = () => {
-      console.log('=== 音声デバッグ情報 ===');
-      console.log('speechSynthesis:', 'speechSynthesis' in window);
-      console.log('soundEnabled:', soundEnabled);
-      
-      if ('speechSynthesis' in window) {
-        const voices = window.speechSynthesis.getVoices();
-        console.log('利用可能な音声数:', voices.length);
-        console.log('音声リスト:', voices.map(v => `${v.name} (${v.lang})`));
-        
-        // 日本語音声を探す
-        const jpVoices = voices.filter(v => v.lang.includes('ja'));
-        console.log('日本語音声:', jpVoices.length > 0 ? jpVoices : 'なし');
-        
-        // 音声の状態
-        console.log('speaking:', window.speechSynthesis.speaking);
-        console.log('pending:', window.speechSynthesis.pending);
-        console.log('paused:', window.speechSynthesis.paused);
+    // 初回タップで音声を有効化
+    document.addEventListener('click', () => {
+      if (window.enableSpeech && !soundEnabled) {
+        window.enableSpeech();
+        soundEnabled = true;
+        if (btnSound) {
+          btnSound.querySelector('span').textContent = '🔉';
+        }
       }
-      
-      // テスト音声
-      if (window.testSpeech) {
-        console.log('テスト音声を再生します...');
-        window.testSpeech();
-      }
-    };
+    }, { once: true });
   </script>
   
   <!-- camera.js読み込み -->
