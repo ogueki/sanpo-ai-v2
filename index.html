@@ -16,8 +16,6 @@
     @keyframes fadeAway { 0%{opacity:1} 70%{opacity:.3} 100%{opacity:0} }
     .fade-out { animation: fadeAway 3.6s ease forwards; }
     /* ボトムシートのトランジション */
-    .sheet-enter { transform: translateY(100%); opacity:0 }
-    .sheet-enter.active { transform: translateY(0); opacity:1 }
     .sheet { transition: transform .26s ease, opacity .26s ease }
     /* iOS長押しハイライト抑止 */
     * { -webkit-tap-highlight-color: transparent; }
@@ -30,7 +28,7 @@
     <video id="preview" playsinline autoplay muted></video>
 
     <!-- オーバーレイ群（タップで表示/非表示） -->
-    <div id="chrome" class="pointer-events-none absolute inset-0 flex flex-col justify-between p-3 md:p-4 opacity-100 transition-opacity duration-200">
+    <div id="chrome" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-3 md:p-4 opacity-100 transition-opacity duration-200">
       <!-- Top bar -->
       <div class="flex items-center gap-2 pt-[var(--safe-top)]">
         <div class="pointer-events-auto inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 ring-1 ring-white/10 backdrop-blur">
@@ -65,13 +63,13 @@
     </div>
 
     <!-- 画面タップでUI表示/隠すための透明レイヤ -->
-    <button id="hitbox" class="absolute inset-0 bg-transparent" aria-label="UI表示切替"></button>
+    <button id="hitbox" class="absolute inset-0 z-10 bg-transparent" aria-label="UI表示切替"></button>
 
     <!-- 撮影フラッシュ -->
     <div id="flash" class="hidden absolute inset-0 bg-white/80"></div>
 
     <!-- ボトムシート -->
-    <div id="sheet" class="sheet fixed left-0 right-0 bottom-0 translate-y-full opacity-0">
+    <div id="sheet" class="sheet fixed left-0 right-0 bottom-0 z-30 translate-y-full opacity-0">
       <div class="mx-auto max-w-screen-sm rounded-t-3xl bg-zinc-950/95 ring-1 ring-white/10 backdrop-blur p-4 pb-[calc(12px+var(--safe-bottom))] shadow-2xl">
         <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15"></div>
         <div class="flex items-center justify-between mb-3">
@@ -114,26 +112,35 @@
     const sheet = $('sheet');
     const deviceSelect = $('device-select');
 
+    // ステータス表示
     const setStatus = (text, live=false) => {
       $('status-text').textContent = text;
       $('status-led').className = `inline-block w-2.5 h-2.5 rounded-full ${live ? 'bg-emerald-500' : 'bg-zinc-500'}`;
     };
+    window.setStatus = setStatus;
 
+    // UI表示/非表示（動画タップで切替）
     let chromeVisible = true;
     const toggleChrome = (v) => {
       chromeVisible = (v ?? !chromeVisible);
       chrome.style.opacity = chromeVisible ? '1' : '0';
       chrome.style.pointerEvents = chromeVisible ? 'auto' : 'none';
     };
+    window.toggleChrome = toggleChrome;
     hitbox.addEventListener('click', () => toggleChrome());
 
-    const openSheet = () => { sheet.style.opacity = '1'; sheet.style.transform = 'translateY(0)'; };
-    const closeSheet = () => { sheet.style.opacity = '0'; sheet.style.transform = 'translateY(100%)'; };
+    // ボトムシート開閉
+    const openSheet = () => { sheet.style.opacity = '1'; sheet.style.transform = 'translateY(0)'; hitbox.style.pointerEvents = 'none'; };
+    const closeSheet = () => { sheet.style.opacity = '0'; sheet.style.transform = 'translateY(100%)'; hitbox.style.pointerEvents = ''; };
+    window.openSheet = openSheet;
+    window.closeSheet = closeSheet;
     $('btn-more').addEventListener('click', openSheet);
     $('btn-close-sheet').addEventListener('click', closeSheet);
 
+    // デバイスセレクト（本実装では enumerateDevices で埋める）
     deviceSelect.innerHTML = '<option>デフォルトカメラ</option>';
 
+    // シャッター演出（一般的カメラUI）
     const shutter = () => {
       flash.classList.remove('hidden');
       setTimeout(() => flash.classList.add('hidden'), 120);
@@ -144,15 +151,19 @@
       addChat('（サンプル応答）撮影した景色を解析しています…', 'bot');
     });
 
+    // ズームUI（対応端末のみ有効）
     const zoomRange = $('zoom-range');
     const zoomLabel = $('zoom-label');
     const applyZoom = (v) => { const z = Number(v).toFixed(1); zoomLabel.textContent = `${z}×`; };
     zoomRange.addEventListener('input', (e) => applyZoom(e.target.value));
 
+    // トースト
     const toastEl = document.createElement('div');
     toastEl.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 min-w-[220px] max-w-[90vw] px-4 py-2 rounded-xl bg-white/10 backdrop-blur text-sm shadow-2xl';
     const toast = (msg) => { toastEl.textContent = msg; document.body.appendChild(toastEl); setTimeout(()=>toastEl.remove(), 1800); };
+    window.toast = toast;
 
+    // チャット: 最新1〜2メッセージのみ濃く表示。古いものはフェード→削除
     const chat = $('chat');
     const addChat = (text, who='bot') => {
       const bubble = document.createElement('div');
@@ -168,22 +179,27 @@
         });
       }
     };
+    window.addChat = addChat;
 
+    // 代表ボタン
     $('btn-start').addEventListener('click', () => { setStatus('カメラ起動中…', true); toast('カメラを起動します'); });
     $('btn-capture').addEventListener('click', () => { shutter(); toast('画像を送信中…'); addChat('（サンプル応答）画像を受け取りました', 'bot'); });
     $('btn-switch').addEventListener('click', () => toast('カメラを切り替えます'));
     $('btn-audio-test').addEventListener('click', () => toast('マイクテスト…'));
-    $('btn-rec').addEventListener('click', () => { $('badge-rec').classList.remove('hidden'); toast('録音開始'); setTimeout(()=>{ $('badge-rec').classList.add('hidden'); toast('録音停止 → 送信'); addChat('（サンプル応答）音声をテキスト化しました', 'bot'); }, 1500); });
+    $('btn-rec').addEventListener('click', () => {
+      $('badge-rec').classList.remove('hidden');
+      toast('録音開始');
+      setTimeout(()=>{
+        $('badge-rec').classList.add('hidden');
+        toast('録音停止 → 送信');
+        addChat('（サンプル応答）音声をテキスト化しました', 'bot');
+      }, 1500);
+    });
     $('btn-reset').addEventListener('click', () => { toast('リセットしました'); setStatus('待機中', false); chat.innerHTML=''; });
 
-    // ---- camera.js から使えるように公開 ----
-    window.setStatus    = setStatus;
-    window.addChat      = addChat;
-    window.toast        = toast;
-    window.toggleChrome = toggleChrome;
-    window.openSheet    = openSheet;
-    window.closeSheet   = closeSheet;
+    // 初期状態でボタンを押せるように（pointer-events を有効化）
+    toggleChrome(true);
   </script>
-  <!-- <script src="./camera.js"></script> -->
+  <!-- 例: <script src="./camera.js"></script> -->
 </body>
 </html>
