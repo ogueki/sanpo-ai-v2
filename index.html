@@ -204,6 +204,54 @@
         }
       }
     }, { once: true });
+
+    // ====== モバイル音声アンロック（最初のユーザー操作で一度だけ） ======
+    let audioUnlocked = false;
+    let ttsAudioEl = null;
+
+    function ensureAudioEl() {
+      if (!ttsAudioEl) {
+        ttsAudioEl = document.createElement('audio');
+        ttsAudioEl.id = 'tts';
+        ttsAudioEl.playsInline = true;     // iOS必須
+        document.body.appendChild(ttsAudioEl);
+      }
+      return ttsAudioEl;
+    }
+
+    async function unlockAudioOnce() {
+      if (audioUnlocked) return;
+      try {
+        // 無音を短く鳴らして再生許可を得る（失敗してもOK）
+        const a = ensureAudioEl();
+        // 0.05秒の無音mp3（超短いデータURI）
+        a.src = 'data:audio/mpeg;base64,//uQZAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQAA';
+        await a.play().catch(() => {});
+      } finally {
+        audioUnlocked = true;
+      }
+    }
+
+    // 既存ボタンの最初のクリックで必ず呼ぶ
+    ['btn-start','btn-shutter','btn-capture','btn-rec','btn-audio-test'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', unlockAudioOnce, { once: true });
+    });
+
+    // TTS の再生ヘルパ（Blob/URLどちらでも）
+    async function playTTS(source) {
+      const a = ensureAudioEl();
+      a.src = source instanceof Blob ? URL.createObjectURL(source) : String(source);
+      try {
+        // canplay を待つと安定
+        await new Promise(res => a.addEventListener('canplay', res, { once: true }));
+        await a.play();
+      } catch (err) {
+        toast('再生には画面をタップしてください');  // もし拒否されたら案内
+        throw err;
+      }
+    }
+    window.playTTS = playTTS;
   </script>
   
   <!-- camera.js読み込み -->
