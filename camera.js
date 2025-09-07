@@ -588,3 +588,5 @@ window.quickQuestion = quickQuestion;
 window.updateStatus = updateStatus;
 window.resetSession = resetSession;
 window.enableSpeech = enableSpeech;
+window.testSpeech = testSpeech;  // デバッグ用
+window.speak = speak;  // デバッグ用
