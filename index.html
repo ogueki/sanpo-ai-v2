@@ -3,21 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>AI旅のおとも – モバイル優先フルスクリーンUI</title>
-  <!-- Tailwind CDN（試作用。運用時はビルド推奨） -->
+  <title>AI旅のおとも</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <meta name="color-scheme" content="dark light">
   <style>
     :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
     html, body { background: #0a0a0a; }
-    /* 動画を全面にフィット */
     #preview { width:100vw; height:100dvh; object-fit:cover; background:black; }
-    /* フェードアウトして消えるメッセージ */
     @keyframes fadeAway { 0%{opacity:1} 70%{opacity:.3} 100%{opacity:0} }
     .fade-out { animation: fadeAway 3.6s ease forwards; }
-    /* ボトムシートのトランジション */
     .sheet { transition: transform .26s ease, opacity .26s ease }
-    /* iOS長押しハイライト抑止 */
     * { -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
@@ -27,21 +22,20 @@
   <main id="stage" class="fixed inset-0 overflow-hidden">
     <video id="preview" playsinline autoplay muted></video>
 
-    <!-- オーバーレイ群（タップで表示/非表示） -->
-    <div id="chrome" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-3 md:p-4 opacity-100 transition-opacity duration-200">
+    <!-- オーバーレイ群 -->
+    <div id="chrome" class="absolute inset-0 z-20 flex flex-col justify-between p-3 md:p-4 opacity-100 transition-opacity duration-200">
       <!-- Top bar -->
       <div class="flex items-center gap-2 pt-[var(--safe-top)]">
-        <div class="pointer-events-auto inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 ring-1 ring-white/10 backdrop-blur">
+        <div class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 ring-1 ring-white/10 backdrop-blur">
           <span id="status-led" class="inline-block w-2.5 h-2.5 rounded-full bg-zinc-500"></span>
           <span id="status-text" class="text-sm text-zinc-200">待機中</span>
         </div>
         <div class="ml-auto flex items-center gap-2">
-          <span id="badge-live" class="hidden pointer-events-auto px-2 py-1 text-xs rounded-md bg-red-600/80">LIVE</span>
-          <span id="badge-rec" class="hidden pointer-events-auto px-2 py-1 text-xs rounded-md bg-red-600/80">REC</span>
+          <span id="badge-rec" class="hidden px-2 py-1 text-xs rounded-md bg-red-600/80">REC</span>
         </div>
       </div>
 
-      <!-- 右上: チャット（最新のみ濃く、他はフェード） -->
+      <!-- 右上: チャット -->
       <div class="absolute right-3 top-14 md:right-4 md:top-16 max-w-[80vw] sm:max-w-[60vw] space-y-1">
         <div id="chat" class="flex flex-col gap-1"></div>
       </div>
@@ -49,27 +43,27 @@
       <!-- Bottom controls -->
       <div class="grid grid-cols-3 items-end gap-3 pb-[calc(8px+var(--safe-bottom))]">
         <div class="flex items-center">
-          <button id="btn-switch" class="pointer-events-auto ml-1 inline-flex items-center justify-center w-12 h-12 rounded-full bg-black/40 ring-1 ring-white/10 backdrop-blur hover:bg-black/55" aria-label="カメラ切替">🔄</button>
+          <button id="btn-switch" class="ml-1 inline-flex items-center justify-center w-12 h-12 rounded-full bg-black/40 ring-1 ring-white/10 backdrop-blur hover:bg-black/55" aria-label="カメラ切替">🔄</button>
         </div>
         <div class="flex items-center justify-center">
-          <button id="btn-shutter" class="pointer-events-auto relative w-20 h-20 rounded-full bg-amber-500 shadow-[0_0_0_6px_rgba(255,255,255,0.18)] active:scale-95 transition" aria-label="撮影/送信">
+          <button id="btn-shutter" class="relative w-20 h-20 rounded-full bg-amber-500 shadow-[0_0_0_6px_rgba(255,255,255,0.18)] active:scale-95 transition" aria-label="撮影/送信">
             <span class="absolute inset-1 rounded-full bg-amber-600/70"></span>
           </button>
         </div>
         <div class="flex items-center justify-end">
-          <button id="btn-more" class="pointer-events-auto mr-1 inline-flex items-center justify-center w-12 h-12 rounded-full bg-black/40 ring-1 ring-white/10 backdrop-blur" aria-label="その他">⋯</button>
+          <button id="btn-more" class="mr-1 inline-flex items-center justify-center w-12 h-12 rounded-full bg-black/40 ring-1 ring-white/10 backdrop-blur" aria-label="その他">⋯</button>
         </div>
       </div>
     </div>
 
-    <!-- 画面タップでUI表示/隠すための透明レイヤ -->
+    <!-- 画面タップでUI表示/隠す -->
     <button id="hitbox" class="absolute inset-0 z-10 bg-transparent" aria-label="UI表示切替"></button>
 
     <!-- 撮影フラッシュ -->
-    <div id="flash" class="hidden absolute inset-0 bg-white/80"></div>
+    <div id="flash" class="hidden absolute inset-0 bg-white/80 pointer-events-none z-50"></div>
 
     <!-- ボトムシート -->
-    <div id="sheet" class="sheet fixed left-0 right-0 bottom-0 z-30 translate-y-full opacity-0">
+    <div id="sheet" class="sheet fixed left-0 right-0 bottom-0 z-30 translate-y-full opacity-0 pointer-events-none">
       <div class="mx-auto max-w-screen-sm rounded-t-3xl bg-zinc-950/95 ring-1 ring-white/10 backdrop-blur p-4 pb-[calc(12px+var(--safe-bottom))] shadow-2xl">
         <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15"></div>
         <div class="flex items-center justify-between mb-3">
@@ -77,23 +71,35 @@
           <button id="btn-close-sheet" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700">閉じる</button>
         </div>
         <div class="space-y-3">
-          <div class="flex items-center gap-3">
-            <label class="text-sm text-zinc-400">カメラ</label>
-            <select id="device-select" class="flex-1 px-2.5 py-2 rounded-xl bg-zinc-900 ring-1 ring-white/10"></select>
-            <button id="btn-start" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500">起動</button>
+          <!-- テキスト入力 -->
+          <div class="flex items-center gap-2">
+            <input id="userText" type="text" placeholder="質問を入力..." 
+              class="flex-1 px-3 py-2 rounded-xl bg-zinc-900 ring-1 ring-white/10 text-white placeholder:text-zinc-500">
+            <button id="btn-send-text" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500">送信</button>
           </div>
-          <div class="flex items-center gap-3">
-            <label class="text-sm text-zinc-400">ズーム</label>
-            <input id="zoom-range" type="range" min="1" max="5" step="0.1" class="w-full">
-            <span id="zoom-label" class="w-12 text-right text-sm">1.0×</span>
+          
+          <!-- クイック質問 -->
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="quickQuestion('これは何ですか？')" 
+              class="h-10 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">これは何？</button>
+            <button onclick="quickQuestion('詳しく教えて')" 
+              class="h-10 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">詳しく教えて</button>
+            <button onclick="quickQuestion('歴史を教えて')" 
+              class="h-10 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">歴史について</button>
+            <button onclick="quickQuestion('おすすめは？')" 
+              class="h-10 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm">おすすめは？</button>
           </div>
+          
+          <!-- アクション -->
           <div class="grid grid-cols-2 gap-3">
-            <button id="btn-capture" class="h-11 rounded-xl bg-amber-600 hover:bg-amber-500 font-medium">画像を送る</button>
-            <button id="btn-rec" class="h-11 rounded-xl bg-rose-700 hover:bg-rose-600 font-medium">音声録音 ▶ 送信</button>
+            <button id="btn-capture" class="h-11 rounded-xl bg-amber-600 hover:bg-amber-500 font-medium">📸 画像送信</button>
+            <button id="btn-rec" class="h-11 rounded-xl bg-rose-700 hover:bg-rose-600 font-medium">🎤 音声入力</button>
           </div>
-          <div class="grid grid-cols-2 gap-3">
-            <button id="btn-audio-test" class="h-11 rounded-xl bg-zinc-800 hover:bg-zinc-700">音声テスト</button>
-            <button id="btn-reset" class="h-11 rounded-xl bg-zinc-800 hover:bg-zinc-700">リセット</button>
+          
+          <!-- カメラ設定 -->
+          <div class="flex items-center gap-3">
+            <button id="btn-start" class="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-medium">カメラ起動</button>
+            <button id="btn-reset" class="flex-1 h-11 rounded-xl bg-zinc-800 hover:bg-zinc-700">会話リセット</button>
           </div>
         </div>
       </div>
@@ -103,14 +109,13 @@
     <canvas id="canvas" class="hidden"></canvas>
   </main>
 
-  <!-- ===== UI wiring ===== -->
+  <!-- UI制御用スクリプト -->
   <script>
     const $ = (id) => document.getElementById(id);
     const chrome = $('chrome');
     const hitbox = $('hitbox');
     const flash = $('flash');
     const sheet = $('sheet');
-    const deviceSelect = $('device-select');
 
     // ステータス表示
     const setStatus = (text, live=false) => {
@@ -119,87 +124,51 @@
     };
     window.setStatus = setStatus;
 
-    // UI表示/非表示（動画タップで切替）
+    // UI表示/非表示
     let chromeVisible = true;
     const toggleChrome = (v) => {
-      chromeVisible = (v ?? !chromeVisible);
+      chromeVisible = (v !== undefined ? v : !chromeVisible);
       chrome.style.opacity = chromeVisible ? '1' : '0';
-      chrome.style.pointerEvents = chromeVisible ? 'auto' : 'none';
     };
     window.toggleChrome = toggleChrome;
     hitbox.addEventListener('click', () => toggleChrome());
 
     // ボトムシート開閉
-    const openSheet = () => { sheet.style.opacity = '1'; sheet.style.transform = 'translateY(0)'; hitbox.style.pointerEvents = 'none'; };
-    const closeSheet = () => { sheet.style.opacity = '0'; sheet.style.transform = 'translateY(100%)'; hitbox.style.pointerEvents = ''; };
+    const openSheet = () => { 
+      sheet.style.opacity = '1'; 
+      sheet.style.transform = 'translateY(0)'; 
+      sheet.style.pointerEvents = 'auto';
+      hitbox.style.pointerEvents = 'none'; 
+    };
+    const closeSheet = () => { 
+      sheet.style.opacity = '0'; 
+      sheet.style.transform = 'translateY(100%)'; 
+      sheet.style.pointerEvents = 'none';
+      hitbox.style.pointerEvents = ''; 
+    };
     window.openSheet = openSheet;
     window.closeSheet = closeSheet;
     $('btn-more').addEventListener('click', openSheet);
     $('btn-close-sheet').addEventListener('click', closeSheet);
 
-    // デバイスセレクト（本実装では enumerateDevices で埋める）
-    deviceSelect.innerHTML = '<option>デフォルトカメラ</option>';
+    // トースト
+    const toast = (msg) => { 
+      const toastEl = document.createElement('div');
+      toastEl.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 min-w-[220px] max-w-[90vw] px-4 py-2 rounded-xl bg-white/10 backdrop-blur text-sm shadow-2xl z-50';
+      toastEl.textContent = msg;
+      document.body.appendChild(toastEl); 
+      setTimeout(()=>toastEl.remove(), 2500); 
+    };
+    window.toast = toast;
 
-    // シャッター演出（一般的カメラUI）
-    const shutter = () => {
+    // フラッシュ効果
+    window.showFlash = () => {
       flash.classList.remove('hidden');
       setTimeout(() => flash.classList.add('hidden'), 120);
     };
-    $('btn-shutter').addEventListener('click', () => {
-      shutter();
-      toast('画像を送信中…');
-      addChat('（サンプル応答）撮影した景色を解析しています…', 'bot');
-    });
-
-    // ズームUI（対応端末のみ有効）
-    const zoomRange = $('zoom-range');
-    const zoomLabel = $('zoom-label');
-    const applyZoom = (v) => { const z = Number(v).toFixed(1); zoomLabel.textContent = `${z}×`; };
-    zoomRange.addEventListener('input', (e) => applyZoom(e.target.value));
-
-    // トースト
-    const toastEl = document.createElement('div');
-    toastEl.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 min-w-[220px] max-w-[90vw] px-4 py-2 rounded-xl bg-white/10 backdrop-blur text-sm shadow-2xl';
-    const toast = (msg) => { toastEl.textContent = msg; document.body.appendChild(toastEl); setTimeout(()=>toastEl.remove(), 1800); };
-    window.toast = toast;
-
-    // チャット: 最新1〜2メッセージのみ濃く表示。古いものはフェード→削除
-    const chat = $('chat');
-    const addChat = (text, who='bot') => {
-      const bubble = document.createElement('div');
-      bubble.className = `max-w-[80vw] sm:max-w-[60vw] px-3 py-2 rounded-2xl ring-1 ring-white/10 backdrop-blur ${who==='me' ? 'bg-emerald-700 ml-auto' : 'bg-zinc-900/75'}`;
-      bubble.textContent = text;
-      chat.appendChild(bubble);
-
-      const nodes = Array.from(chat.children);
-      if (nodes.length > 2) {
-        nodes.slice(0, nodes.length - 2).forEach(n => {
-          n.classList.add('fade-out');
-          setTimeout(() => n.remove(), 3600);
-        });
-      }
-    };
-    window.addChat = addChat;
-
-    // 代表ボタン
-    $('btn-start').addEventListener('click', () => { setStatus('カメラ起動中…', true); toast('カメラを起動します'); });
-    $('btn-capture').addEventListener('click', () => { shutter(); toast('画像を送信中…'); addChat('（サンプル応答）画像を受け取りました', 'bot'); });
-    $('btn-switch').addEventListener('click', () => toast('カメラを切り替えます'));
-    $('btn-audio-test').addEventListener('click', () => toast('マイクテスト…'));
-    $('btn-rec').addEventListener('click', () => {
-      $('badge-rec').classList.remove('hidden');
-      toast('録音開始');
-      setTimeout(()=>{
-        $('badge-rec').classList.add('hidden');
-        toast('録音停止 → 送信');
-        addChat('（サンプル応答）音声をテキスト化しました', 'bot');
-      }, 1500);
-    });
-    $('btn-reset').addEventListener('click', () => { toast('リセットしました'); setStatus('待機中', false); chat.innerHTML=''; });
-
-    // 初期状態でボタンを押せるように（pointer-events を有効化）
-    toggleChrome(true);
   </script>
-  <!-- 例: <script src="./camera.js"></script> -->
+  
+  <!-- camera.js読み込み -->
+  <script src="./camera.js"></script>
 </body>
 </html>

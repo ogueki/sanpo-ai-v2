@@ -1,4 +1,4 @@
-/* ---------- 修正版 camera.js ---------- */
+/* ---------- camera.js - AI旅のおとも（完全修正版） ---------- */
 
 /* ---------- ズーム機能 ---------- */
 let currentZoom = 1;
@@ -7,19 +7,25 @@ const minZoom = 1;
 const zoomStep = 0.2;
 
 /* ---------- セッション ID（ブラウザごとに固定） ---------- */
-const SESSION_ID =
-  localStorage.getItem('session-id') ||
-  (() => {
-    const id = crypto?.randomUUID
-      ? crypto.randomUUID()
-      : 'ss-' + Date.now().toString(36) + '-' +
-      Math.random().toString(36).slice(2, 10);
-    localStorage.setItem('session-id', id);
-    return id;
-  })();
+const SESSION_ID = (() => {
+  try {
+    return localStorage.getItem('session-id') || (() => {
+      const id = 'ss-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('session-id', id);
+      return id;
+    })();
+  } catch {
+    // localStorage が使えない場合のフォールバック
+    return 'ss-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+})();
+
+console.log('📱 Session ID:', SESSION_ID);
 
 /* ---------- 定数 & 要素取得 ---------- */
 const API_URL_UNIFIED = '/api/unified';
+const API_URL_RESET = '/api/reset-session';
+const API_URL_STT = '/api/speech-to-text';
 
 // 要素の安全な取得
 const getElement = (id) => {
@@ -30,25 +36,38 @@ const getElement = (id) => {
   return element;
 };
 
-const video = getElement('preview') || getElement('video'); // index.htmlとの互換性
+const video = getElement('preview') || getElement('video');
 const canvas = getElement('canvas');
 
 /* ---------- SpeechSynthesis 初期化 ---------- */
 let voiceReady = false;
 let jpVoice = null;
 
-speechSynthesis.onvoiceschanged = () => {
-  jpVoice = speechSynthesis.getVoices().find(v => v.lang.startsWith('ja'));
-  console.log('🔊 日本語音声:', jpVoice ? jpVoice.name : '未対応');
-};
-
-function warmUpSpeech() {
-  if (voiceReady) return;
-  speechSynthesis.speak(new SpeechSynthesisUtterance(''));
-  voiceReady = true;
+function initSpeech() {
+  if ('speechSynthesis' in window) {
+    const loadVoices = () => {
+      const voices = speechSynthesis.getVoices();
+      jpVoice = voices.find(v => v.lang.startsWith('ja')) || voices[0];
+      console.log('🔊 音声:', jpVoice ? jpVoice.name : '利用不可');
+    };
+    
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+  }
 }
 
-/* ---------- カメラ制御（改善版） ---------- */
+function warmUpSpeech() {
+  if (voiceReady || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+    voiceReady = true;
+  } catch (e) {
+    console.warn('音声の初期化失敗:', e);
+  }
+}
+
+/* ---------- カメラ制御 ---------- */
 let currentStream = null;
 let useBack = true;
 
@@ -57,7 +76,7 @@ async function startCamera(back = true) {
   
   if (!video) {
     console.error('❌ video要素が見つかりません');
-    alert('video要素が見つかりません。HTMLを確認してください。');
+    showToast('video要素が見つかりません');
     return false;
   }
 
@@ -69,92 +88,63 @@ async function startCamera(back = true) {
     currentStream = null;
   }
 
-  // HTTPS チェック
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-    console.error('❌ HTTPSが必要です');
-    alert('カメラアクセスにはHTTPSが必要です。');
-    return false;
-  }
-
   // MediaDevices API チェック
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    console.error('❌ MediaDevices API がサポートされていません');
-    alert('このブラウザはカメラをサポートしていません。');
+  if (!navigator.mediaDevices?.getUserMedia) {
+    console.error('❌ カメラAPIがサポートされていません');
+    showToast('このブラウザはカメラをサポートしていません');
     return false;
   }
 
   try {
-    // ステータス更新
     updateStatus('カメラ起動中...', false);
     
-    // カメラ制約
-    const constraints = back 
-      ? { 
-          video: { 
-            facingMode: { exact: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          } 
-        }
-      : { 
-          video: { 
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          } 
-        };
+    // カメラ制約の設定
+    const constraints = {
+      video: back ? 
+        { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } :
+        { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+    };
 
     console.log('📱 カメラ制約:', constraints);
     
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    currentStream = stream;
-    video.srcObject = stream;
+    try {
+      // まず指定された制約で試行
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      currentStream = stream;
+      video.srcObject = stream;
+    } catch (err) {
+      console.log('⚠️ 指定カメラ失敗、基本設定で再試行:', err.message);
+      // フォールバック: 基本設定
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      currentStream = stream;
+      video.srcObject = stream;
+    }
     
     // 動画読み込み完了まで待機
-    await new Promise((resolve, reject) => {
-      video.onloadedmetadata = resolve;
-      video.onerror = reject;
-      setTimeout(reject, 5000); // 5秒タイムアウト
+    await new Promise((resolve) => {
+      video.onloadedmetadata = () => {
+        video.play().then(resolve).catch(console.error);
+      };
     });
     
     console.log(`✅ カメラ起動成功: ${video.videoWidth}x${video.videoHeight}`);
     updateStatus('カメラ起動完了', true);
+    showToast('カメラ起動しました');
     
     return true;
     
   } catch (err) {
     console.error('❌ カメラエラー:', err);
-    
-    if (back && err.name === 'OverconstrainedError') {
-      console.log('💡 背面カメラが見つからないため、前面カメラで再試行');
-      return startCamera(false);
-    }
-    
-    // フォールバック: 基本設定
-    if (back || err.name === 'OverconstrainedError') {
-      try {
-        console.log('🔄 基本設定で再試行');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        currentStream = stream;
-        video.srcObject = stream;
-        
-        await new Promise((resolve, reject) => {
-          video.onloadedmetadata = resolve;
-          video.onerror = reject;
-          setTimeout(reject, 5000);
-        });
-        
-        console.log('✅ フォールバックカメラ起動成功');
-        updateStatus('カメラ起動完了（基本モード）', true);
-        return true;
-        
-      } catch (fallbackErr) {
-        console.error('❌ フォールバックも失敗:', fallbackErr);
-      }
-    }
-    
     updateStatus('カメラ起動失敗', false);
-    alert(`カメラにアクセスできません: ${err.message}`);
+    
+    if (err.name === 'NotAllowedError') {
+      showToast('カメラへのアクセスが拒否されました。設定を確認してください。');
+    } else if (err.name === 'NotFoundError') {
+      showToast('カメラが見つかりません');
+    } else {
+      showToast(`カメラエラー: ${err.message}`);
+    }
+    
     return false;
   }
 }
@@ -167,7 +157,6 @@ function flipCamera() {
 
 /* ---------- ステータス表示 ---------- */
 function updateStatus(text, live = false) {
-  // index.html との互換性
   const statusText = getElement('status-text');
   const statusLed = getElement('status-led');
   
@@ -176,7 +165,6 @@ function updateStatus(text, live = false) {
     statusLed.className = `inline-block w-2.5 h-2.5 rounded-full ${live ? 'bg-emerald-500' : 'bg-zinc-500'}`;
   }
   
-  // setStatus 関数との互換性
   if (window.setStatus) {
     window.setStatus(text, live);
   }
@@ -184,13 +172,88 @@ function updateStatus(text, live = false) {
   console.log(`📊 Status: ${text} (live: ${live})`);
 }
 
+/* ---------- 音声録音 ---------- */
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const base64Audio = await blobToBase64(audioBlob);
+      
+      // Base64文字列からプレフィックスを削除
+      const base64Data = base64Audio.split(',')[1];
+      
+      // Whisper APIに送信
+      try {
+        const response = await fetch(API_URL_STT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audioBase64: base64Data })
+        });
+        
+        const data = await response.json();
+        if (data.success && data.text) {
+          // 認識したテキストをAIに送信
+          await sendToUnifiedAI(data.text);
+        } else {
+          showToast('音声認識に失敗しました');
+        }
+      } catch (error) {
+        console.error('❌ 音声認識エラー:', error);
+        showToast('音声認識エラー');
+      }
+      
+      // ストリームを停止
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    updateStatus('録音中...', true);
+    showToast('録音開始');
+    
+    // RECバッジ表示
+    const recBadge = getElement('badge-rec');
+    if (recBadge) recBadge.classList.remove('hidden');
+    
+  } catch (error) {
+    console.error('❌ 録音開始エラー:', error);
+    showToast('マイクにアクセスできません');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+    updateStatus('処理中...', false);
+    showToast('録音停止→送信中');
+    
+    // RECバッジ非表示
+    const recBadge = getElement('badge-rec');
+    if (recBadge) recBadge.classList.add('hidden');
+  }
+}
+
 /* ---------- 統合AI処理 ---------- */
-let lastImageB64 = null;
 let processingRequest = false;
 
 async function sendToUnifiedAI(text, newImage = null) {
   if (processingRequest) {
-    console.log('⚠️ Already processing request, skipping...');
+    console.log('⚠️ 処理中です');
     showToast('処理中です。しばらくお待ちください。');
     return;
   }
@@ -199,7 +262,7 @@ async function sendToUnifiedAI(text, newImage = null) {
     processingRequest = true;
     showLoadingIndicator();
 
-    console.log(`🚀 Sending to Unified AI - Text: "${text}", HasNewImage: ${!!newImage}`);
+    console.log(`🚀 AI送信 - Text: "${text}", 画像: ${!!newImage}`);
 
     const requestBody = {
       sessionId: SESSION_ID,
@@ -208,7 +271,6 @@ async function sendToUnifiedAI(text, newImage = null) {
 
     if (newImage) {
       requestBody.image = newImage;
-      lastImageB64 = newImage;
     }
 
     const response = await fetch(API_URL_UNIFIED, {
@@ -218,45 +280,44 @@ async function sendToUnifiedAI(text, newImage = null) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
     }
 
     const data = await response.json();
     const answer = data.answer;
 
-    console.log(`✅ Unified AI Response received`);
+    console.log(`✅ AI応答受信`);
 
     appendChat(text, answer);
     speak(answer);
 
   } catch (error) {
-    console.error('❌ Unified AI Error:', error);
+    console.error('❌ AI処理エラー:', error);
     
-    const errorMessage = '申し訳ありません。処理中にエラーが発生しました。もう一度お試しください。';
+    const errorMessage = 'エラーが発生しました。もう一度お試しください。';
     appendChat(text, errorMessage);
-    speak(errorMessage);
+    showToast('エラーが発生しました');
     
   } finally {
     processingRequest = false;
     hideLoadingIndicator();
+    updateStatus('待機中', false);
   }
 }
 
 async function captureAndSendToAI(extraText = '') {
   if (!video) {
-    alert('video要素が見つかりません');
+    showToast('video要素が見つかりません');
     return;
   }
   
   if (!video.srcObject || !video.videoWidth) {
-    alert('まず「カメラ開始」を押してください');
-    
-    // 自動でカメラを起動
+    showToast('カメラを起動しています...');
     const success = await startCamera(useBack);
     if (!success) return;
     
-    // 少し待ってから再試行
+    // カメラ起動後、少し待ってから撮影
     setTimeout(() => captureAndSendToAI(extraText), 1000);
     return;
   }
@@ -266,45 +327,32 @@ async function captureAndSendToAI(extraText = '') {
       throw new Error('canvas要素が見つかりません');
     }
     
-    const SCALE = currentZoom > 1.5 ? 0.8 : 0.6;
+    // 画像をキャプチャ
+    const SCALE = 0.7; // 画像サイズの調整
     canvas.width = video.videoWidth * SCALE;
     canvas.height = video.videoHeight * SCALE;
     
     const ctx = canvas.getContext('2d');
-    
-    ctx.save();
-    ctx.scale(currentZoom, currentZoom);
-    
-    const offsetX = -(video.videoWidth * (currentZoom - 1)) / (2 * currentZoom);
-    const offsetY = -(video.videoHeight * (currentZoom - 1)) / (2 * currentZoom);
-    
-    ctx.drawImage(video, offsetX, offsetY, video.videoWidth, video.videoHeight);
-    ctx.restore();
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
     if (!blob) {
       throw new Error('画像の生成に失敗しました');
     }
 
     const base64Image = await blobToBase64(blob);
     
-    let questionText;
-    if (extraText) {
-      questionText = extraText;
-    } else if (currentZoom > 1.3) {
-      questionText = `写真を送信しました。`;
-    } else {
-      questionText = '写真を送信しました。';
-    }
+    const questionText = extraText || '写真を送信しました。何が見えますか？';
     
     await sendToUnifiedAI(questionText, base64Image);
     
     // フラッシュ効果
     showFlash();
+    showToast('画像を送信しました');
 
   } catch (error) {
-    console.error('❌ Capture Error:', error);
-    alert(`画像の処理中にエラーが発生しました: ${error.message}`);
+    console.error('❌ 撮影エラー:', error);
+    showToast('画像の処理に失敗しました');
   }
 }
 
@@ -312,7 +360,8 @@ async function captureAndSendToAI(extraText = '') {
 function showLoadingIndicator(message = '🤔 考え中...') {
   hideLoadingIndicator();
   
-  const chatContainer = getElement('chat') || createChatContainer();
+  const chatContainer = getElement('chat');
+  if (!chatContainer) return;
   
   const loadingDiv = document.createElement('div');
   loadingDiv.id = 'loading-indicator';
@@ -330,30 +379,12 @@ function hideLoadingIndicator() {
   }
 }
 
-function createChatContainer() {
-  const existing = getElement('chat');
-  if (existing) return existing;
-  
-  // チャットコンテナが存在しない場合は作成
-  const container = document.createElement('div');
-  container.id = 'chat';
-  container.className = 'flex flex-col gap-1';
-  container.style.cssText = `
-    position: fixed;
-    right: 12px;
-    top: 60px;
-    max-width: 80vw;
-    max-height: 50vh;
-    overflow-y: auto;
-    z-index: 25;
-  `;
-  
-  document.body.appendChild(container);
-  return container;
-}
-
 function appendChat(userText, aiResponse) {
-  const chatContainer = getElement('chat') || createChatContainer();
+  const chatContainer = getElement('chat');
+  if (!chatContainer) return;
+  
+  // 既存のローディング削除
+  hideLoadingIndicator();
   
   // ユーザーメッセージ
   const userDiv = document.createElement('div');
@@ -367,8 +398,8 @@ function appendChat(userText, aiResponse) {
   aiDiv.textContent = aiResponse;
   chatContainer.appendChild(aiDiv);
   
-  // 古いメッセージをフェードアウト
-  const messages = Array.from(chatContainer.children);
+  // 古いメッセージをフェードアウト（最新4件のみ表示）
+  const messages = Array.from(chatContainer.children).filter(el => el.id !== 'loading-indicator');
   if (messages.length > 4) {
     messages.slice(0, messages.length - 4).forEach(msg => {
       msg.style.animation = 'fadeAway 3.6s ease forwards';
@@ -385,16 +416,22 @@ function showFlash() {
     flash.classList.remove('hidden');
     setTimeout(() => flash.classList.add('hidden'), 120);
   }
+  if (window.showFlash) {
+    window.showFlash();
+  }
 }
 
 function showToast(message) {
-  // 既存のtoast関数を使用するか、自作
   if (window.toast) {
     window.toast(message);
   } else {
     console.log('📢 Toast:', message);
-    // 簡易トースト表示
-    alert(message);
+    // 簡易トースト実装
+    const toastEl = document.createElement('div');
+    toastEl.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 min-w-[220px] max-w-[90vw] px-4 py-2 rounded-xl bg-white/10 backdrop-blur text-sm shadow-2xl z-50';
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => toastEl.remove(), 2500);
   }
 }
 
@@ -417,10 +454,34 @@ function quickQuestion(questionText) {
   const input = getElement('userText');
   if (input) {
     input.value = questionText;
-    setTimeout(() => sendText(), 200);
+    // 少し遅延を入れてから送信
+    setTimeout(() => sendText(), 100);
   } else {
     // 直接送信
     sendToUnifiedAI(questionText);
+  }
+}
+
+async function resetSession() {
+  try {
+    const response = await fetch(API_URL_RESET, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SESSION_ID })
+    });
+    
+    if (response.ok) {
+      // チャットをクリア
+      const chatContainer = getElement('chat');
+      if (chatContainer) {
+        chatContainer.innerHTML = '';
+      }
+      updateStatus('リセット完了', false);
+      showToast('会話をリセットしました');
+    }
+  } catch (error) {
+    console.error('❌ リセットエラー:', error);
+    showToast('リセットに失敗しました');
   }
 }
 
@@ -435,6 +496,8 @@ function blobToBase64(blob) {
 }
 
 function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  
   speechSynthesis.cancel();
   const uttr = new SpeechSynthesisUtterance(text);
   if (jpVoice) uttr.voice = jpVoice;
@@ -447,6 +510,10 @@ function speak(text) {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🔧 camera.js loaded');
   
+  // 音声初期化
+  initSpeech();
+  
+  // テキスト入力
   const userTextInput = getElement('userText');
   if (userTextInput) {
     userTextInput.addEventListener('keypress', (e) => {
@@ -462,11 +529,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCapture = getElement('btn-capture');
   const btnShutter = getElement('btn-shutter');
   const btnSwitch = getElement('btn-switch');
+  const btnSendText = getElement('btn-send-text');
+  const btnReset = getElement('btn-reset');
+  const btnRec = getElement('btn-rec');
   
   if (btnStart) btnStart.addEventListener('click', () => startCamera(useBack));
   if (btnCapture) btnCapture.addEventListener('click', () => captureAndSendToAI());
   if (btnShutter) btnShutter.addEventListener('click', () => captureAndSendToAI());
   if (btnSwitch) btnSwitch.addEventListener('click', flipCamera);
+  if (btnSendText) btnSendText.addEventListener('click', sendText);
+  if (btnReset) btnReset.addEventListener('click', resetSession);
+  
+  // 録音ボタン（押している間録音）
+  if (btnRec) {
+    let recordingTimeout;
+    
+    const startRec = () => {
+      if (!isRecording) {
+        startRecording();
+        // 最大10秒で自動停止
+        recordingTimeout = setTimeout(() => {
+          if (isRecording) stopRecording();
+        }, 10000);
+      }
+    };
+    
+    const stopRec = () => {
+      if (recordingTimeout) clearTimeout(recordingTimeout);
+      if (isRecording) stopRecording();
+    };
+    
+    // デスクトップ
+    btnRec.addEventListener('mousedown', startRec);
+    btnRec.addEventListener('mouseup', stopRec);
+    btnRec.addEventListener('mouseleave', stopRec);
+    
+    // モバイル
+    btnRec.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      startRec();
+    });
+    btnRec.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      stopRec();
+    });
+  }
+  
+  // 初期カメラ起動（0.5秒後）
+  setTimeout(() => startCamera(true), 500);
 });
 
 /* ---------- グローバル公開 ---------- */
@@ -476,3 +586,4 @@ window.flipCamera = flipCamera;
 window.sendText = sendText;
 window.quickQuestion = quickQuestion;
 window.updateStatus = updateStatus;
+window.resetSession = resetSession;
