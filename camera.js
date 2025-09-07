@@ -1,3 +1,5 @@
+/* ---------- 修正版 camera.js ---------- */
+
 /* ---------- ズーム機能 ---------- */
 let currentZoom = 1;
 const maxZoom = 3;
@@ -17,11 +19,19 @@ const SESSION_ID =
   })();
 
 /* ---------- 定数 & 要素取得 ---------- */
-const API_URL_UNIFIED = '/api/unified';  // 統合API
+const API_URL_UNIFIED = '/api/unified';
 
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const respEl = document.getElementById('response');
+// 要素の安全な取得
+const getElement = (id) => {
+  const element = document.getElementById(id);
+  if (!element) {
+    console.warn(`Element not found: ${id}`);
+  }
+  return element;
+};
+
+const video = getElement('preview') || getElement('video'); // index.htmlとの互換性
+const canvas = getElement('canvas');
 
 /* ---------- SpeechSynthesis 初期化 ---------- */
 let voiceReady = false;
@@ -29,6 +39,7 @@ let jpVoice = null;
 
 speechSynthesis.onvoiceschanged = () => {
   jpVoice = speechSynthesis.getVoices().find(v => v.lang.startsWith('ja'));
+  console.log('🔊 日本語音声:', jpVoice ? jpVoice.name : '未対応');
 };
 
 function warmUpSpeech() {
@@ -37,49 +48,155 @@ function warmUpSpeech() {
   voiceReady = true;
 }
 
-/* ---------- カメラ制御 ---------- */
+/* ---------- カメラ制御（改善版） ---------- */
+let currentStream = null;
 let useBack = true;
 
 async function startCamera(back = true) {
-  warmUpSpeech();
+  console.log('📱 カメラ起動開始:', back ? '背面' : '前面');
+  
+  if (!video) {
+    console.error('❌ video要素が見つかりません');
+    alert('video要素が見つかりません。HTMLを確認してください。');
+    return false;
+  }
 
-  const preferred = back
-    ? { video: { facingMode: { exact: 'environment' } } }
-    : { video: true };
+  warmUpSpeech();
+  
+  // 既存ストリームを停止
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+    currentStream = null;
+  }
+
+  // HTTPS チェック
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    console.error('❌ HTTPSが必要です');
+    alert('カメラアクセスにはHTTPSが必要です。');
+    return false;
+  }
+
+  // MediaDevices API チェック
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    console.error('❌ MediaDevices API がサポートされていません');
+    alert('このブラウザはカメラをサポートしていません。');
+    return false;
+  }
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia(preferred);
+    // ステータス更新
+    updateStatus('カメラ起動中...', false);
+    
+    // カメラ制約
+    const constraints = back 
+      ? { 
+          video: { 
+            facingMode: { exact: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        }
+      : { 
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        };
+
+    console.log('📱 カメラ制約:', constraints);
+    
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    currentStream = stream;
     video.srcObject = stream;
+    
+    // 動画読み込み完了まで待機
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = resolve;
+      video.onerror = reject;
+      setTimeout(reject, 5000); // 5秒タイムアウト
+    });
+    
+    console.log(`✅ カメラ起動成功: ${video.videoWidth}x${video.videoHeight}`);
+    updateStatus('カメラ起動完了', true);
+    
+    return true;
+    
   } catch (err) {
-    if (back) return startCamera(false);
-    alert('カメラにアクセスできません: ' + err.message);
+    console.error('❌ カメラエラー:', err);
+    
+    if (back && err.name === 'OverconstrainedError') {
+      console.log('💡 背面カメラが見つからないため、前面カメラで再試行');
+      return startCamera(false);
+    }
+    
+    // フォールバック: 基本設定
+    if (back || err.name === 'OverconstrainedError') {
+      try {
+        console.log('🔄 基本設定で再試行');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        currentStream = stream;
+        video.srcObject = stream;
+        
+        await new Promise((resolve, reject) => {
+          video.onloadedmetadata = resolve;
+          video.onerror = reject;
+          setTimeout(reject, 5000);
+        });
+        
+        console.log('✅ フォールバックカメラ起動成功');
+        updateStatus('カメラ起動完了（基本モード）', true);
+        return true;
+        
+      } catch (fallbackErr) {
+        console.error('❌ フォールバックも失敗:', fallbackErr);
+      }
+    }
+    
+    updateStatus('カメラ起動失敗', false);
+    alert(`カメラにアクセスできません: ${err.message}`);
+    return false;
   }
 }
 
 function flipCamera() {
-  if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+  console.log('🔄 カメラ切り替え');
   useBack = !useBack;
   startCamera(useBack);
 }
 
-/* ---------- 統合AI処理 ---------- */
-let lastImageB64 = null;  // 最新画像のキャッシュ
-let processingRequest = false;  // 重複リクエスト防止
+/* ---------- ステータス表示 ---------- */
+function updateStatus(text, live = false) {
+  // index.html との互換性
+  const statusText = getElement('status-text');
+  const statusLed = getElement('status-led');
+  
+  if (statusText) statusText.textContent = text;
+  if (statusLed) {
+    statusLed.className = `inline-block w-2.5 h-2.5 rounded-full ${live ? 'bg-emerald-500' : 'bg-zinc-500'}`;
+  }
+  
+  // setStatus 関数との互換性
+  if (window.setStatus) {
+    window.setStatus(text, live);
+  }
+  
+  console.log(`📊 Status: ${text} (live: ${live})`);
+}
 
-/**
- * 統合AIにリクエストを送信する共通関数
- */
+/* ---------- 統合AI処理 ---------- */
+let lastImageB64 = null;
+let processingRequest = false;
+
 async function sendToUnifiedAI(text, newImage = null) {
-  // 重複リクエスト防止
   if (processingRequest) {
     console.log('⚠️ Already processing request, skipping...');
+    showToast('処理中です。しばらくお待ちください。');
     return;
   }
 
   try {
     processingRequest = true;
-    
-    // ローディング表示
     showLoadingIndicator();
 
     console.log(`🚀 Sending to Unified AI - Text: "${text}", HasNewImage: ${!!newImage}`);
@@ -89,10 +206,9 @@ async function sendToUnifiedAI(text, newImage = null) {
       text: text.trim()
     };
 
-    // 新しい画像がある場合のみ含める
     if (newImage) {
       requestBody.image = newImage;
-      lastImageB64 = newImage;  // キャッシュ更新
+      lastImageB64 = newImage;
     }
 
     const response = await fetch(API_URL_UNIFIED, {
@@ -111,16 +227,12 @@ async function sendToUnifiedAI(text, newImage = null) {
 
     console.log(`✅ Unified AI Response received`);
 
-    // チャットに表示
     appendChat(text, answer);
-    
-    // 音声で読み上げ
     speak(answer);
 
   } catch (error) {
     console.error('❌ Unified AI Error:', error);
     
-    // エラーメッセージを表示
     const errorMessage = '申し訳ありません。処理中にエラーが発生しました。もう一度お試しください。';
     appendChat(text, errorMessage);
     speak(errorMessage);
@@ -131,29 +243,38 @@ async function sendToUnifiedAI(text, newImage = null) {
   }
 }
 
-/**
- * 画像をキャプチャして統合AIに送信
- */
 async function captureAndSendToAI(extraText = '') {
-  if (!video.videoWidth) {
+  if (!video) {
+    alert('video要素が見つかりません');
+    return;
+  }
+  
+  if (!video.srcObject || !video.videoWidth) {
     alert('まず「カメラ開始」を押してください');
+    
+    // 自動でカメラを起動
+    const success = await startCamera(useBack);
+    if (!success) return;
+    
+    // 少し待ってから再試行
+    setTimeout(() => captureAndSendToAI(extraText), 1000);
     return;
   }
 
   try {
-    // ズーム時は解像度を少し上げる
+    if (!canvas) {
+      throw new Error('canvas要素が見つかりません');
+    }
+    
     const SCALE = currentZoom > 1.5 ? 0.8 : 0.6;
     canvas.width = video.videoWidth * SCALE;
     canvas.height = video.videoHeight * SCALE;
     
-    // ズーム情報を考慮してcanvasに描画
     const ctx = canvas.getContext('2d');
     
-    // ズームされた状態を再現
     ctx.save();
     ctx.scale(currentZoom, currentZoom);
     
-    // 中央寄せで描画
     const offsetX = -(video.videoWidth * (currentZoom - 1)) / (2 * currentZoom);
     const offsetY = -(video.videoHeight * (currentZoom - 1)) / (2 * currentZoom);
     
@@ -162,13 +283,11 @@ async function captureAndSendToAI(extraText = '') {
 
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
     if (!blob) {
-      alert('画像の取得に失敗しました');
-      return;
+      throw new Error('画像の生成に失敗しました');
     }
 
     const base64Image = await blobToBase64(blob);
     
-    // ズーム情報をAIに伝える
     let questionText;
     if (extraText) {
       questionText = extraText;
@@ -178,200 +297,139 @@ async function captureAndSendToAI(extraText = '') {
       questionText = '写真を送信しました。';
     }
     
-    // 統合AIに送信（新しい画像付き）
     await sendToUnifiedAI(questionText, base64Image);
+    
+    // フラッシュ効果
+    showFlash();
 
   } catch (error) {
     console.error('❌ Capture Error:', error);
-    alert('画像の処理中にエラーが発生しました');
-  }
-}
-
-/**
- * テキスト入力を統合AIに送信
- */
-async function sendText() {
-  const input = document.getElementById('userText');
-  const text = input.value.trim();
-  
-  if (!text) return;
-
-  // 入力欄をクリア
-  input.value = '';
-
-  // 統合AIに送信（画像判定は統合API側で自動実行）
-  await sendToUnifiedAI(text);
-}
-
-/* ---------- 定型質問機能 ---------- */
-// 定型質問を送信する関数
-function quickQuestion(questionText) {
-  const input = document.getElementById('userText');
-  input.value = questionText;
-  
-  // 少し遅延して送信（ユーザーが確認できるように）
-  setTimeout(() => {
-    sendText();
-  }, 200);
-}
-
-/* ---------- Whisper API 音声認識機能 ---------- */
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-
-// 音声録音の初期化
-async function initAudioRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      }
-    });
-    
-    mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'audio/webm;codecs=opus',
-    });
-    
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
-    };
-    
-    mediaRecorder.onstop = async () => {
-      console.log('🎤 録音停止、音声認識開始...');
-      
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      audioChunks = [];
-      
-      await sendAudioToWhisper(audioBlob);
-    };
-    
-    console.log('✅ 音声録音準備完了');
-    return true;
-    
-  } catch (error) {
-    console.error('❌ 音声録音初期化失敗:', error);
-    return false;
-  }
-}
-
-// Whisper API に音声を送信
-async function sendAudioToWhisper(audioBlob) {
-  try {
-    showLoadingIndicator('🎤 音声を認識中...');
-    
-    // Blob を Base64 に変換
-    const audioBase64 = await blobToBase64(audioBlob);
-    const base64Data = audioBase64.split(',')[1]; // "data:audio/webm;base64," を除去
-    
-    console.log(`🎤 Whisper APIに送信中... (${audioBlob.size} bytes)`);
-    
-    const response = await fetch('/api/speech-to-text', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audioBase64: base64Data }),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-    
-    const result = await response.json();
-    
-    if (result.success && result.text) {
-      console.log(`✅ 音声認識成功: "${result.text}"`);
-      
-      const input = document.getElementById('userText');
-      input.value = result.text;
-      
-      hideLoadingIndicator();
-      await sendToUnifiedAI(result.text);
-      
-    } else {
-      throw new Error(result.error || '音声認識に失敗しました');
-    }
-    
-  } catch (error) {
-    console.error('❌ Whisper API エラー:', error);
-    hideLoadingIndicator();
-    alert(`音声認識エラー: ${error.message}`);
-  }
-}
-
-// 音声録音開始/停止
-async function toggleAudioRecording() {
-  if (!mediaRecorder) {
-    const initialized = await initAudioRecording();
-    if (!initialized) {
-      alert('マイクにアクセスできません。ブラウザの設定を確認してください。');
-      return;
-    }
-  }
-  
-  if (isRecording) {
-    mediaRecorder.stop();
-    isRecording = false;
-    updateRecordButton(false);
-  } else {
-    audioChunks = [];
-    mediaRecorder.start();
-    isRecording = true;
-    updateRecordButton(true);
-    console.log('🎤 録音開始...');
-  }
-}
-
-// 録音ボタンの表示更新
-function updateRecordButton(recording) {
-  const recordButton = document.getElementById('recordButton');
-  if (recordButton) {
-    if (recording) {
-      recordButton.textContent = '🔴 停止';
-      recordButton.className = 'record-btn recording';
-    } else {
-      recordButton.textContent = '🎤 音声録音';
-      recordButton.className = 'record-btn';
-    }
+    alert(`画像の処理中にエラーが発生しました: ${error.message}`);
   }
 }
 
 /* ---------- UI表示関数 ---------- */
 function showLoadingIndicator(message = '🤔 考え中...') {
-  // 既存のローディングを削除
   hideLoadingIndicator();
   
-  // 新しいローディング表示
+  const chatContainer = getElement('chat') || createChatContainer();
+  
   const loadingDiv = document.createElement('div');
   loadingDiv.id = 'loading-indicator';
-  loadingDiv.innerHTML = `<div class="bubble ai">${message}</div>`;
-  respEl.appendChild(loadingDiv);
-  respEl.scrollTop = respEl.scrollHeight;
+  loadingDiv.className = 'max-w-[80vw] sm:max-w-[60vw] px-3 py-2 rounded-2xl ring-1 ring-white/10 backdrop-blur bg-zinc-900/75';
+  loadingDiv.textContent = message;
+  
+  chatContainer.appendChild(loadingDiv);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
 function hideLoadingIndicator() {
-  const loadingEl = document.getElementById('loading-indicator');
+  const loadingEl = getElement('loading-indicator');
   if (loadingEl) {
     loadingEl.remove();
   }
 }
 
-function appendChat(q, a) {
-  respEl.innerHTML += `<div class="bubble user">${q}</div>`;
-  respEl.innerHTML += `<div class="bubble ai">${a}</div>`;
-  respEl.scrollTop = respEl.scrollHeight;  // 自動スクロール
+function createChatContainer() {
+  const existing = getElement('chat');
+  if (existing) return existing;
+  
+  // チャットコンテナが存在しない場合は作成
+  const container = document.createElement('div');
+  container.id = 'chat';
+  container.className = 'flex flex-col gap-1';
+  container.style.cssText = `
+    position: fixed;
+    right: 12px;
+    top: 60px;
+    max-width: 80vw;
+    max-height: 50vh;
+    overflow-y: auto;
+    z-index: 25;
+  `;
+  
+  document.body.appendChild(container);
+  return container;
 }
 
-/* ---------- 補助関数 ---------- */
+function appendChat(userText, aiResponse) {
+  const chatContainer = getElement('chat') || createChatContainer();
+  
+  // ユーザーメッセージ
+  const userDiv = document.createElement('div');
+  userDiv.className = 'max-w-[80vw] sm:max-w-[60vw] px-3 py-2 rounded-2xl ring-1 ring-white/10 backdrop-blur bg-emerald-700 ml-auto';
+  userDiv.textContent = userText;
+  chatContainer.appendChild(userDiv);
+  
+  // AIレスポンス
+  const aiDiv = document.createElement('div');
+  aiDiv.className = 'max-w-[80vw] sm:max-w-[60vw] px-3 py-2 rounded-2xl ring-1 ring-white/10 backdrop-blur bg-zinc-900/75';
+  aiDiv.textContent = aiResponse;
+  chatContainer.appendChild(aiDiv);
+  
+  // 古いメッセージをフェードアウト
+  const messages = Array.from(chatContainer.children);
+  if (messages.length > 4) {
+    messages.slice(0, messages.length - 4).forEach(msg => {
+      msg.style.animation = 'fadeAway 3.6s ease forwards';
+      setTimeout(() => msg.remove(), 3600);
+    });
+  }
+  
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function showFlash() {
+  const flash = getElement('flash');
+  if (flash) {
+    flash.classList.remove('hidden');
+    setTimeout(() => flash.classList.add('hidden'), 120);
+  }
+}
+
+function showToast(message) {
+  // 既存のtoast関数を使用するか、自作
+  if (window.toast) {
+    window.toast(message);
+  } else {
+    console.log('📢 Toast:', message);
+    // 簡易トースト表示
+    alert(message);
+  }
+}
+
+/* ---------- その他の機能 ---------- */
+async function sendText() {
+  const input = getElement('userText');
+  if (!input) {
+    console.error('userText input not found');
+    return;
+  }
+  
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  await sendToUnifiedAI(text);
+}
+
+function quickQuestion(questionText) {
+  const input = getElement('userText');
+  if (input) {
+    input.value = questionText;
+    setTimeout(() => sendText(), 200);
+  } else {
+    // 直接送信
+    sendToUnifiedAI(questionText);
+  }
+}
+
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     if (!blob) return reject(new Error('blob is null'));
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
 }
@@ -380,119 +438,36 @@ function speak(text) {
   speechSynthesis.cancel();
   const uttr = new SpeechSynthesisUtterance(text);
   if (jpVoice) uttr.voice = jpVoice;
+  uttr.rate = 1.1;
+  uttr.pitch = 1.0;
   speechSynthesis.speak(uttr);
 }
 
-/* ---------- キーボードショートカット ---------- */
+/* ---------- イベントリスナー ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  const userTextInput = document.getElementById('userText');
+  console.log('🔧 camera.js loaded');
   
-  // Enterキーで送信
-  userTextInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendText();
-    }
-  });
-});
-
-/* ---------- セッションリセット機能 ---------- */
-// セッションをリセットする関数
-async function resetSession() {
-  // 確認ダイアログ
-  const confirmed = confirm('🗑️ 記憶をリセットしますか？\n\n• 撮影した画像の情報\n• 会話履歴\n• AI の記憶\n\nすべてクリアされます。');
-  
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    showLoadingIndicator('🗑️ リセット中...');
-
-    console.log('🗑️ セッションリセット開始');
-
-    // Reset APIに送信
-    const response = await fetch('/api/reset-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: SESSION_ID })
+  const userTextInput = getElement('userText');
+  if (userTextInput) {
+    userTextInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendText();
+      }
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (result.success) {
-      console.log('✅ セッションリセット成功');
-      
-      // フロントエンド側のキャッシュもクリア
-      lastImageB64 = null;
-      
-      // チャット履歴をクリア
-      respEl.innerHTML = `
-        <div class="bubble ai">
-          🗑️ リセット完了！新しい会話を始めましょう。<br>
-          カメラを開始して、景色を撮影するか、何でも質問してくださいね！
-        </div>
-      `;
-      
-      // 入力欄もクリア
-      const input = document.getElementById('userText');
-      if (input) input.value = '';
-      
-      hideLoadingIndicator();
-      
-      // 音声で通知
-      speak('リセット完了しました。新しい会話を始めましょう。');
-      
-    } else {
-      throw new Error(result.error || 'リセットに失敗しました');
-    }
-
-  } catch (error) {
-    console.error('❌ セッションリセットエラー:', error);
-    hideLoadingIndicator();
-    alert(`リセットエラー: ${error.message}`);
-  }
-}
-
-/* ---------- ズーム機能 ---------- */
-function adjustZoom(direction) {
-  if (direction === 'in' && currentZoom < maxZoom) {
-    currentZoom += zoomStep;
-  } else if (direction === 'out' && currentZoom > minZoom) {
-    currentZoom -= zoomStep;
   }
   
-  // 小数点以下を丸める
-  currentZoom = Math.round(currentZoom * 10) / 10;
+  // ボタンイベントの設定
+  const btnStart = getElement('btn-start');
+  const btnCapture = getElement('btn-capture');
+  const btnShutter = getElement('btn-shutter');
+  const btnSwitch = getElement('btn-switch');
   
-  applyZoomToVideo();
-  updateZoomDisplay();
-  
-  console.log(`🔍 Zoom applied: ${currentZoom}x`);
-}
-
-function resetZoom() {
-  currentZoom = 1;
-  applyZoomToVideo();
-  updateZoomDisplay();
-  console.log('🎯 Zoom reset to 1x');
-}
-
-function applyZoomToVideo() {
-  video.style.transform = `scale(${currentZoom})`;
-}
-
-function updateZoomDisplay() {
-  const zoomDisplay = document.getElementById('zoom-display');
-  if (zoomDisplay) {
-    zoomDisplay.textContent = `${Math.round(currentZoom * 100)}%`;
-  }
-}
+  if (btnStart) btnStart.addEventListener('click', () => startCamera(useBack));
+  if (btnCapture) btnCapture.addEventListener('click', () => captureAndSendToAI());
+  if (btnShutter) btnShutter.addEventListener('click', () => captureAndSendToAI());
+  if (btnSwitch) btnSwitch.addEventListener('click', flipCamera);
+});
 
 /* ---------- グローバル公開 ---------- */
 window.startCamera = startCamera;
@@ -500,7 +475,4 @@ window.captureAndSendToAI = captureAndSendToAI;
 window.flipCamera = flipCamera;
 window.sendText = sendText;
 window.quickQuestion = quickQuestion;
-window.toggleAudioRecording = toggleAudioRecording;
-window.resetSession = resetSession; 
-window.adjustZoom = adjustZoom;
-window.resetZoom = resetZoom;
+window.updateStatus = updateStatus;
