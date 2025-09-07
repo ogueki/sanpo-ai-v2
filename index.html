@@ -25,18 +25,24 @@
     <!-- オーバーレイ群 -->
     <div id="chrome" class="absolute inset-0 z-20 flex flex-col justify-between p-3 md:p-4 opacity-100 transition-opacity duration-200">
       <!-- Top bar -->
-      <div class="flex items-center gap-2 pt-[var(--safe-top)]">
+      <div class="flex items-center justify-between pt-[var(--safe-top)]">
+        <!-- 左側：ステータス -->
         <div class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 ring-1 ring-white/10 backdrop-blur">
           <span id="status-led" class="inline-block w-2.5 h-2.5 rounded-full bg-zinc-500"></span>
           <span id="status-text" class="text-sm text-zinc-200">待機中</span>
         </div>
-        <div class="ml-auto flex items-center gap-2">
+        
+        <!-- 右側：音声ボタンとRECバッジ -->
+        <div class="flex items-center gap-2">
+          <button id="btn-sound" class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-black/40 ring-1 ring-white/10 backdrop-blur hover:bg-black/60 transition">
+            <span class="text-lg">🔊</span>
+          </button>
           <span id="badge-rec" class="hidden px-2 py-1 text-xs rounded-md bg-red-600/80">REC</span>
         </div>
       </div>
 
       <!-- 右上: チャット -->
-      <div class="absolute right-3 top-14 md:right-4 md:top-16 max-w-[80vw] sm:max-w-[60vw] space-y-1">
+      <div class="absolute right-3 top-16 md:right-4 md:top-20 max-w-[80vw] sm:max-w-[60vw] space-y-1">
         <div id="chat" class="flex flex-col gap-1"></div>
       </div>
 
@@ -169,20 +175,33 @@
 
     // 音声ボタン（モバイル用音声有効化）
     const btnSound = $('btn-sound');
+    let soundEnabled = false;
+    
     if (btnSound) {
       btnSound.addEventListener('click', () => {
-        if (window.enableSpeech) {
-          window.enableSpeech();
-          toast('音声を有効化しました');
-          btnSound.textContent = '🔉';
+        soundEnabled = !soundEnabled;
+        
+        if (soundEnabled) {
+          if (window.enableSpeech) {
+            window.enableSpeech();
+          }
+          toast('🔉 音声ON');
+          btnSound.querySelector('span').textContent = '🔉';
+        } else {
+          toast('🔇 音声OFF');
+          btnSound.querySelector('span').textContent = '🔇';
         }
       });
     }
     
     // 初回タップで音声を有効化
     document.addEventListener('click', () => {
-      if (window.enableSpeech) {
+      if (window.enableSpeech && !soundEnabled) {
         window.enableSpeech();
+        soundEnabled = true;
+        if (btnSound) {
+          btnSound.querySelector('span').textContent = '🔉';
+        }
       }
     }, { once: true });
   </script>
