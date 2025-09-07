@@ -166,6 +166,25 @@
       flash.classList.remove('hidden');
       setTimeout(() => flash.classList.add('hidden'), 120);
     };
+
+    // 音声ボタン（モバイル用音声有効化）
+    const btnSound = $('btn-sound');
+    if (btnSound) {
+      btnSound.addEventListener('click', () => {
+        if (window.enableSpeech) {
+          window.enableSpeech();
+          toast('音声を有効化しました');
+          btnSound.textContent = '🔉';
+        }
+      });
+    }
+    
+    // 初回タップで音声を有効化
+    document.addEventListener('click', () => {
+      if (window.enableSpeech) {
+        window.enableSpeech();
+      }
+    }, { once: true });
   </script>
   
   <!-- camera.js読み込み -->

@@ -587,3 +587,4 @@ window.sendText = sendText;
 window.quickQuestion = quickQuestion;
 window.updateStatus = updateStatus;
 window.resetSession = resetSession;
+window.enableSpeech = enableSpeech;
