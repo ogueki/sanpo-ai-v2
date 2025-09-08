@@ -108,7 +108,6 @@
     const $ = (id) => document.getElementById(id);
     const chrome = $('chrome');
     const hitbox = $('hitbox');
-    const flash = $('flash');
     const sheet = $('sheet');
     const deviceSelect = $('device-select');
 
@@ -139,19 +138,6 @@
 
     // デバイスセレクト（本実装では enumerateDevices で埋める）
     deviceSelect.innerHTML = '<option>デフォルトカメラ</option>';
-
-    // シャッター演出（一般的カメラUI）
-    const shutter = () => {
-      flash.classList.remove('hidden');
-      setTimeout(() => flash.classList.add('hidden'), 120);
-    };
-    $('btn-shutter').addEventListener('click', () => {
-      shutter();
-      // ここで canvas キャプチャ → 送信（camera.js 側の処理を呼ぶ）
-      toast('画像を送信中…');
-      // 擬似応答
-      addChat('（サンプル応答）撮影した景色を解析しています…', 'bot');
-    });
 
     // ズームUI（対応端末のみ有効）
     const zoomRange = $('zoom-range');
@@ -220,21 +206,11 @@
     };
     window.addChat = addChat;
 
-    // 代表ボタン
-    $('btn-start').addEventListener('click', () => { setStatus('カメラ起動中…', true); toast('カメラを起動します'); });
-    $('btn-capture').addEventListener('click', () => { shutter(); toast('画像を送信中…'); addChat('（サンプル応答）画像を受け取りました', 'bot'); });
-    $('btn-switch').addEventListener('click', () => toast('カメラを切り替えます'));
-    $('btn-audio-test').addEventListener('click', () => { unlockSpeechOnce(); addChat('テスト：この音声は聞こえますか？', 'bot'); });
-    $('btn-rec').addEventListener('click', () => {
-      $('badge-rec').classList.remove('hidden');
-      toast('録音開始');
-      setTimeout(()=>{
-        $('badge-rec').classList.add('hidden');
-        toast('録音停止 → 送信');
-        addChat('（サンプル応答）音声をテキスト化しました', 'bot');
-      }, 1500);
+    // ボタンの簡易動作
+    $('btn-audio-test').addEventListener('click', () => {
+      unlockSpeechOnce();
+      addChat('テスト：この音声は聞こえますか？', 'bot');
     });
-    $('btn-reset').addEventListener('click', () => { toast('リセットしました'); setStatus('待機中', false); chat.innerHTML=''; });
 
     // 初期状態でボタンを押せるように（pointer-events を有効化）
     toggleChrome(true);
