@@ -133,8 +133,31 @@
     const closeSheet = () => { sheet.style.opacity = '0'; sheet.style.transform = 'translateY(100%)'; hitbox.style.pointerEvents = ''; };
     window.openSheet = openSheet;
     window.closeSheet = closeSheet;
-    $('btn-more').addEventListener('click', openSheet);
-    $('btn-close-sheet').addEventListener('click', closeSheet);
+    // 端末差吸収: click に加えて pointer/touch でも反応させる
+    ;['click','pointerup','touchend'].forEach(ev => $('btn-more')?.addEventListener(ev, openSheet));
+    ;['click','pointerup','touchend'].forEach(ev => $('btn-close-sheet')?.addEventListener(ev, closeSheet));
+
+    // クリック不能対策: マークアップ崩れの可能性に備え補正
+    try {
+      const btnMore = $('btn-more');
+      if (btnMore) {
+        btnMore.setAttribute('type', 'button');
+        btnMore.setAttribute('aria-label', 'メニュー');
+        if (!btnMore.textContent || !btnMore.textContent.trim()) btnMore.textContent = '⋯';
+      }
+      const btnClose = $('btn-close-sheet');
+      if (btnClose) {
+        btnClose.setAttribute('type', 'button');
+        if (!btnClose.textContent || !btnClose.textContent.trim()) btnClose.textContent = '閉じる';
+      }
+      const btnStart = $('btn-start');
+      if (btnStart) {
+        btnStart.setAttribute('type', 'button');
+        if (!btnStart.textContent || !btnStart.textContent.trim()) btnStart.textContent = '起動';
+      }
+    } catch (e) {
+      console.warn('normalize buttons failed', e);
+    }
 
     // デバイスセレクト（本実装では enumerateDevices で埋める）
     deviceSelect.innerHTML = '<option>デフォルトカメラ</option>';
