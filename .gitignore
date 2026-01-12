@@ -1,3 +1,6 @@
-".env" 
-".env" 
 .env
+node_modules/
+.DS_Store
+dist/
+.expo/
+*.log
