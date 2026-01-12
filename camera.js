@@ -1,5 +1,3 @@
-/* ---------- camera.js - AI旅のおとも（完全修正版） ---------- */
-
 /* ---------- ズーム機能 ---------- */
 let currentZoom = 1;
 const maxZoom = 3;
@@ -587,4 +585,5 @@ window.sendText = sendText;
 window.quickQuestion = quickQuestion;
 window.updateStatus = updateStatus;
 window.resetSession = resetSession;
+
 window.enableSpeech = enableSpeech;
