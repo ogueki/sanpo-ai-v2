@@ -21,9 +21,10 @@ export default async function handler(req, res) {
     const audioBuffer = Buffer.from(audioBase64, 'base64');
     console.log(`🎤 [Speech-to-Text] Processing audio: ${audioBuffer.length} bytes`);
 
-    // Whisper API用にFileオブジェクトを作成
-    const audioFile = new File([audioBuffer], 'audio.webm', { 
-      type: 'audio/webm' 
+    // iOSはm4a、Androidはwebm形式で録音される
+    // Whisper APIは複数のフォーマットを受け付けるので、m4aで送信
+    const audioFile = new File([audioBuffer], 'audio.m4a', {
+      type: 'audio/mp4'
     });
 
     // OpenAI Whisper APIに送信
@@ -45,12 +46,12 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ [Speech-to-Text] Error:', error);
-    
+
     let errorMessage = '音声認識に失敗しました';
     if (error.message.includes('Invalid file format')) {
       errorMessage = '音声ファイルの形式が無効です';
     }
-    
+
     res.status(500).json({
       success: false,
       error: errorMessage,

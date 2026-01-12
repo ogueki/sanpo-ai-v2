@@ -10,7 +10,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -73,26 +73,66 @@ export default function App() {
   // ■ 録音開始
   async function startRecording() {
     try {
+      // 既存のrecordingがあれば先にクリーンアップ
+      if (recording) {
+        try {
+          await recording.stopAndUnloadAsync();
+        } catch (e) {
+          // 既に停止済みの場合は無視
+        }
+        setRecording(null);
+      }
+
       setStatus('聞いています...');
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
+      // Whisper互換のAAC形式で録音
+      const recordingOptions = {
+        isMeteringEnabled: true,
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.HIGH,
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+        },
+        web: {
+          mimeType: 'audio/webm',
+          bitsPerSecond: 128000,
+        },
+      };
+
       const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+        recordingOptions
       );
       setRecording(newRecording);
       setIsRecording(true);
     } catch (err) {
       console.error('Failed to start recording', err);
+      setIsRecording(false);
+      setRecording(null);
       Alert.alert('エラー', 'マイクを起動できませんでした');
     }
   }
 
   // ■ 録音停止 & 送信
   async function stopRecording() {
-    if (!recording) return;
+    if (!recording) {
+      setIsRecording(false);
+      return;
+    }
 
     setStatus('処理中...');
     setIsRecording(false);
@@ -102,8 +142,14 @@ export default function App() {
       const uri = recording.getURI();
       setRecording(null);
 
+      if (!uri) {
+        setStatus('録音データなし');
+        return;
+      }
+
+      // FileSystem.EncodingType.Base64 の代わりに文字列 'base64' を使用
       const base64Info = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
       });
 
       const res = await fetch(API_URL_STT, {
