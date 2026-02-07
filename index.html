@@ -105,7 +105,7 @@
   <!-- ===== UI wiring ===== -->
   <script>
     const $ = (id) => document.getElementById(id);
-    const chrome = $('chrome');
+    const chromeOverlay = $('chrome');
     const hitbox = $('hitbox');
     const sheet = $('sheet');
     const deviceSelect = $('device-select');
@@ -121,8 +121,8 @@
     let chromeVisible = true;
     const toggleChrome = (v) => {
       chromeVisible = (v ?? !chromeVisible);
-      chrome.style.opacity = chromeVisible ? '1' : '0';
-      chrome.style.pointerEvents = chromeVisible ? 'auto' : 'none';
+      chromeOverlay.style.opacity = chromeVisible ? '1' : '0';
+      chromeOverlay.style.pointerEvents = chromeVisible ? 'auto' : 'none';
     };
     window.toggleChrome = toggleChrome;
     hitbox.addEventListener('click', () => toggleChrome());
