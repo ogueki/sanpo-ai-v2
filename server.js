@@ -3,6 +3,7 @@ import cors from 'cors';
 import unifiedHandler from './api/unified.js';
 import sttHandler from './api/speech-to-text.js';
 import resetHandler from './api/reset-session.js';
+import ttsHandler from './api/tts.js';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -18,11 +19,17 @@ app.use(express.json({ limit: '50mb' })); // 画像や音声データ用に制�
 app.post('/api/unified', unifiedHandler);
 app.post('/api/speech-to-text', sttHandler);
 app.post('/api/reset-session', resetHandler);
+app.post('/api/tts', ttsHandler);
 
 // ヘルスチェック
-app.get('/', (req, res) => {
+app.get('/health', (req, res) => {
   res.send('Sanpo AI Server is running 🚀');
 });
+
+// 静的ファイルサービング（index.html, camera.js など）
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.use(express.static(__dirname));
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Server running at http://0.0.0.0:${PORT}`);

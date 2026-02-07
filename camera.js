@@ -48,7 +48,7 @@ function initSpeech() {
       jpVoice = voices.find(v => v.lang.startsWith('ja')) || voices[0];
       console.log('🔊 音声:', jpVoice ? jpVoice.name : '利用不可');
     };
-    
+
     loadVoices();
     speechSynthesis.onvoiceschanged = loadVoices;
   }
@@ -71,7 +71,7 @@ let useBack = true;
 
 async function startCamera(back = true) {
   console.log('📱 カメラ起動開始:', back ? '背面' : '前面');
-  
+
   if (!video) {
     console.error('❌ video要素が見つかりません');
     showToast('video要素が見つかりません');
@@ -79,7 +79,7 @@ async function startCamera(back = true) {
   }
 
   warmUpSpeech();
-  
+
   // 既存ストリームを停止
   if (currentStream) {
     currentStream.getTracks().forEach(track => track.stop());
@@ -95,16 +95,16 @@ async function startCamera(back = true) {
 
   try {
     updateStatus('カメラ起動中...', false);
-    
+
     // カメラ制約の設定
     const constraints = {
-      video: back ? 
+      video: back ?
         { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } :
         { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
     };
 
     console.log('📱 カメラ制約:', constraints);
-    
+
     try {
       // まず指定された制約で試行
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -117,24 +117,24 @@ async function startCamera(back = true) {
       currentStream = stream;
       video.srcObject = stream;
     }
-    
+
     // 動画読み込み完了まで待機
     await new Promise((resolve) => {
       video.onloadedmetadata = () => {
         video.play().then(resolve).catch(console.error);
       };
     });
-    
+
     console.log(`✅ カメラ起動成功: ${video.videoWidth}x${video.videoHeight}`);
     updateStatus('カメラ起動完了', true);
     showToast('カメラ起動しました');
-    
+
     return true;
-    
+
   } catch (err) {
     console.error('❌ カメラエラー:', err);
     updateStatus('カメラ起動失敗', false);
-    
+
     if (err.name === 'NotAllowedError') {
       showToast('カメラへのアクセスが拒否されました。設定を確認してください。');
     } else if (err.name === 'NotFoundError') {
@@ -142,7 +142,7 @@ async function startCamera(back = true) {
     } else {
       showToast(`カメラエラー: ${err.message}`);
     }
-    
+
     return false;
   }
 }
@@ -157,16 +157,16 @@ function flipCamera() {
 function updateStatus(text, live = false) {
   const statusText = getElement('status-text');
   const statusLed = getElement('status-led');
-  
+
   if (statusText) statusText.textContent = text;
   if (statusLed) {
     statusLed.className = `inline-block w-2.5 h-2.5 rounded-full ${live ? 'bg-emerald-500' : 'bg-zinc-500'}`;
   }
-  
+
   if (window.setStatus) {
     window.setStatus(text, live);
   }
-  
+
   console.log(`📊 Status: ${text} (live: ${live})`);
 }
 
@@ -190,10 +190,10 @@ async function startRecording() {
     mediaRecorder.onstop = async () => {
       const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
       const base64Audio = await blobToBase64(audioBlob);
-      
+
       // Base64文字列からプレフィックスを削除
       const base64Data = base64Audio.split(',')[1];
-      
+
       // Whisper APIに送信
       try {
         const response = await fetch(API_URL_STT, {
@@ -201,7 +201,7 @@ async function startRecording() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ audioBase64: base64Data })
         });
-        
+
         const data = await response.json();
         if (data.success && data.text) {
           // 認識したテキストをAIに送信
@@ -213,7 +213,7 @@ async function startRecording() {
         console.error('❌ 音声認識エラー:', error);
         showToast('音声認識エラー');
       }
-      
+
       // ストリームを停止
       stream.getTracks().forEach(track => track.stop());
     };
@@ -222,11 +222,11 @@ async function startRecording() {
     isRecording = true;
     updateStatus('録音中...', true);
     showToast('録音開始');
-    
+
     // RECバッジ表示
     const recBadge = getElement('badge-rec');
     if (recBadge) recBadge.classList.remove('hidden');
-    
+
   } catch (error) {
     console.error('❌ 録音開始エラー:', error);
     showToast('マイクにアクセスできません');
@@ -239,7 +239,7 @@ function stopRecording() {
     isRecording = false;
     updateStatus('処理中...', false);
     showToast('録音停止→送信中');
-    
+
     // RECバッジ非表示
     const recBadge = getElement('badge-rec');
     if (recBadge) recBadge.classList.add('hidden');
@@ -292,11 +292,11 @@ async function sendToUnifiedAI(text, newImage = null) {
 
   } catch (error) {
     console.error('❌ AI処理エラー:', error);
-    
+
     const errorMessage = 'エラーが発生しました。もう一度お試しください。';
     appendChat(text, errorMessage);
     showToast('エラーが発生しました');
-    
+
   } finally {
     processingRequest = false;
     hideLoadingIndicator();
@@ -309,12 +309,12 @@ async function captureAndSendToAI(extraText = '') {
     showToast('video要素が見つかりません');
     return;
   }
-  
+
   if (!video.srcObject || !video.videoWidth) {
     showToast('カメラを起動しています...');
     const success = await startCamera(useBack);
     if (!success) return;
-    
+
     // カメラ起動後、少し待ってから撮影
     setTimeout(() => captureAndSendToAI(extraText), 1000);
     return;
@@ -324,12 +324,12 @@ async function captureAndSendToAI(extraText = '') {
     if (!canvas) {
       throw new Error('canvas要素が見つかりません');
     }
-    
+
     // 画像をキャプチャ
     const SCALE = 0.7; // 画像サイズの調整
     canvas.width = video.videoWidth * SCALE;
     canvas.height = video.videoHeight * SCALE;
-    
+
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -339,11 +339,11 @@ async function captureAndSendToAI(extraText = '') {
     }
 
     const base64Image = await blobToBase64(blob);
-    
+
     const questionText = extraText || '写真を送信しました。何が見えますか？';
-    
+
     await sendToUnifiedAI(questionText, base64Image);
-    
+
     // フラッシュ効果
     showFlash();
     showToast('画像を送信しました');
@@ -357,15 +357,15 @@ async function captureAndSendToAI(extraText = '') {
 /* ---------- UI表示関数 ---------- */
 function showLoadingIndicator(message = '🤔 考え中...') {
   hideLoadingIndicator();
-  
+
   const chatContainer = getElement('chat');
   if (!chatContainer) return;
-  
+
   const loadingDiv = document.createElement('div');
   loadingDiv.id = 'loading-indicator';
   loadingDiv.className = 'max-w-[80vw] sm:max-w-[60vw] px-3 py-2 rounded-2xl ring-1 ring-white/10 backdrop-blur bg-zinc-900/75';
   loadingDiv.textContent = message;
-  
+
   chatContainer.appendChild(loadingDiv);
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
@@ -380,22 +380,22 @@ function hideLoadingIndicator() {
 function appendChat(userText, aiResponse) {
   const chatContainer = getElement('chat');
   if (!chatContainer) return;
-  
+
   // 既存のローディング削除
   hideLoadingIndicator();
-  
+
   // ユーザーメッセージ
   const userDiv = document.createElement('div');
   userDiv.className = 'max-w-[80vw] sm:max-w-[60vw] px-3 py-2 rounded-2xl ring-1 ring-white/10 backdrop-blur bg-emerald-700 ml-auto';
   userDiv.textContent = userText;
   chatContainer.appendChild(userDiv);
-  
+
   // AIレスポンス
   const aiDiv = document.createElement('div');
   aiDiv.className = 'max-w-[80vw] sm:max-w-[60vw] px-3 py-2 rounded-2xl ring-1 ring-white/10 backdrop-blur bg-zinc-900/75';
   aiDiv.textContent = aiResponse;
   chatContainer.appendChild(aiDiv);
-  
+
   // 古いメッセージをフェードアウト（最新4件のみ表示）
   const messages = Array.from(chatContainer.children).filter(el => el.id !== 'loading-indicator');
   if (messages.length > 4) {
@@ -404,7 +404,7 @@ function appendChat(userText, aiResponse) {
       setTimeout(() => msg.remove(), 3600);
     });
   }
-  
+
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
@@ -440,7 +440,7 @@ async function sendText() {
     console.error('userText input not found');
     return;
   }
-  
+
   const text = input.value.trim();
   if (!text) return;
 
@@ -467,7 +467,7 @@ async function resetSession() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: SESSION_ID })
     });
-    
+
     if (response.ok) {
       // チャットをクリア
       const chatContainer = getElement('chat');
@@ -493,9 +493,48 @@ function blobToBase64(blob) {
   });
 }
 
-function speak(text) {
+const API_URL_TTS = '/api/tts';
+
+async function speak(text) {
+  if (!text || text.trim().length === 0) return;
+
+  try {
+    // Gemini TTS APIを呼び出し
+    const response = await fetch(API_URL_TTS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+
+    if (!response.ok) {
+      throw new Error(`TTS API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.audio) {
+      // Base64音声データをAudioで再生
+      const audioSrc = `data:audio/wav;base64,${data.audio}`;
+      const audio = new Audio(audioSrc);
+      audio.play().catch(err => {
+        console.warn('🔊 音声再生失敗、フォールバック:', err);
+        speakFallback(text);
+      });
+      return;
+    }
+
+    throw new Error('音声データなし');
+
+  } catch (error) {
+    console.warn('🔊 Gemini TTS失敗、Web Speech APIへフォールバック:', error.message);
+    speakFallback(text);
+  }
+}
+
+// フォールバック: Web Speech API
+function speakFallback(text) {
   if (!('speechSynthesis' in window)) return;
-  
+
   speechSynthesis.cancel();
   const uttr = new SpeechSynthesisUtterance(text);
   if (jpVoice) uttr.voice = jpVoice;
@@ -507,10 +546,10 @@ function speak(text) {
 /* ---------- イベントリスナー ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🔧 camera.js loaded');
-  
+
   // 音声初期化
   initSpeech();
-  
+
   // テキスト入力
   const userTextInput = getElement('userText');
   if (userTextInput) {
@@ -521,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-  
+
   // ボタンイベントの設定
   const btnStart = getElement('btn-start');
   const btnCapture = getElement('btn-capture');
@@ -530,18 +569,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSendText = getElement('btn-send-text');
   const btnReset = getElement('btn-reset');
   const btnRec = getElement('btn-rec');
-  
+
   if (btnStart) btnStart.addEventListener('click', () => startCamera(useBack));
   if (btnCapture) btnCapture.addEventListener('click', () => captureAndSendToAI());
   if (btnShutter) btnShutter.addEventListener('click', () => captureAndSendToAI());
   if (btnSwitch) btnSwitch.addEventListener('click', flipCamera);
   if (btnSendText) btnSendText.addEventListener('click', sendText);
   if (btnReset) btnReset.addEventListener('click', resetSession);
-  
+
   // 録音ボタン（押している間録音）
   if (btnRec) {
     let recordingTimeout;
-    
+
     const startRec = () => {
       if (!isRecording) {
         startRecording();
@@ -551,17 +590,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 10000);
       }
     };
-    
+
     const stopRec = () => {
       if (recordingTimeout) clearTimeout(recordingTimeout);
       if (isRecording) stopRecording();
     };
-    
+
     // デスクトップ
     btnRec.addEventListener('mousedown', startRec);
     btnRec.addEventListener('mouseup', stopRec);
     btnRec.addEventListener('mouseleave', stopRec);
-    
+
     // モバイル
     btnRec.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -572,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
       stopRec();
     });
   }
-  
+
   // 初期カメラ起動（0.5秒後）
   setTimeout(() => startCamera(true), 500);
 });
