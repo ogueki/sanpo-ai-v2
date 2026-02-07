@@ -414,9 +414,6 @@ function showFlash() {
     flash.classList.remove('hidden');
     setTimeout(() => flash.classList.add('hidden'), 120);
   }
-  if (window.showFlash) {
-    window.showFlash();
-  }
 }
 
 function showToast(message) {
@@ -625,4 +622,3 @@ window.quickQuestion = quickQuestion;
 window.updateStatus = updateStatus;
 window.resetSession = resetSession;
 
-window.enableSpeech = enableSpeech;
