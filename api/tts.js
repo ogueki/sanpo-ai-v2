@@ -11,6 +11,43 @@ function getAI() {
   return ai;
 }
 
+/**
+ * PCMデータにWAVヘッダーを追加
+ * Gemini TTSは24kHz, 16bit, モノラルのPCMを返す
+ */
+function addWavHeader(pcmBase64, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
+  const pcmBuffer = Buffer.from(pcmBase64, 'base64');
+  const dataSize = pcmBuffer.length;
+  const byteRate = sampleRate * channels * (bitsPerSample / 8);
+  const blockAlign = channels * (bitsPerSample / 8);
+
+  // WAVヘッダー (44 bytes)
+  const header = Buffer.alloc(44);
+
+  // RIFF header
+  header.write('RIFF', 0);                          // ChunkID
+  header.writeUInt32LE(36 + dataSize, 4);           // ChunkSize
+  header.write('WAVE', 8);                          // Format
+
+  // fmt sub-chunk
+  header.write('fmt ', 12);                         // Subchunk1ID
+  header.writeUInt32LE(16, 16);                     // Subchunk1Size (PCM)
+  header.writeUInt16LE(1, 20);                      // AudioFormat (PCM = 1)
+  header.writeUInt16LE(channels, 22);               // NumChannels
+  header.writeUInt32LE(sampleRate, 24);             // SampleRate
+  header.writeUInt32LE(byteRate, 28);               // ByteRate
+  header.writeUInt16LE(blockAlign, 32);             // BlockAlign
+  header.writeUInt16LE(bitsPerSample, 34);          // BitsPerSample
+
+  // data sub-chunk
+  header.write('data', 36);                         // Subchunk2ID
+  header.writeUInt32LE(dataSize, 40);               // Subchunk2Size
+
+  // ヘッダーとPCMデータを結合
+  const wavBuffer = Buffer.concat([header, pcmBuffer]);
+  return wavBuffer.toString('base64');
+}
+
 export default async (req, res) => {
   console.log('🎤 [TTS] API呼び出し開始');
 
@@ -51,12 +88,15 @@ export default async (req, res) => {
       return res.status(500).json({ error: '音声生成に失敗しました' });
     }
 
-    console.log(`✅ [TTS] 音声生成成功 (${audioData.length} bytes)`);
+    // PCMデータにWAVヘッダーを追加
+    const wavBase64 = addWavHeader(audioData);
 
-    // Base64エンコードされた音声データを返す
+    console.log(`✅ [TTS] 音声生成成功 (WAV: ${wavBase64.length} bytes)`);
+
+    // Base64エンコードされたWAV音声データを返す
     res.json({
       success: true,
-      audio: audioData,
+      audio: wavBase64,
       mimeType: 'audio/wav'
     });
 
