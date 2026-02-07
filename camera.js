@@ -426,7 +426,7 @@ function showToast(message) {
     toastEl.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 min-w-[220px] max-w-[90vw] px-4 py-2 rounded-xl bg-white/10 backdrop-blur text-sm shadow-2xl z-50';
     toastEl.textContent = message;
     document.body.appendChild(toastEl);
-    setTimeout(() => toastEl.remove(), 2500);
+    setTimeout(() => toastEl.remove(), 5000); // 5秒に延長
   }
 }
 
