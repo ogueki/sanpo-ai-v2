@@ -492,8 +492,38 @@ function blobToBase64(blob) {
 
 const API_URL_TTS = '/api/tts';
 
+// AudioContext（モバイル対応用）
+let audioContext = null;
+
+function getAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioContext;
+}
+
+// ユーザー操作時にAudioContextを解禁
+function unlockAudioContext() {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+  } catch (e) {
+    console.warn('AudioContext解禁失敗:', e);
+  }
+}
+
+// 初回タップでAudioContextを解禁
+['click', 'touchstart'].forEach(event => {
+  document.addEventListener(event, unlockAudioContext, { once: true });
+});
+
 async function speak(text) {
   if (!text || text.trim().length === 0) return;
+
+  // AudioContextを念のため解禁
+  unlockAudioContext();
 
   try {
     // Gemini TTS APIを呼び出し
@@ -513,10 +543,14 @@ async function speak(text) {
       // Base64音声データをAudioで再生
       const audioSrc = `data:audio/wav;base64,${data.audio}`;
       const audio = new Audio(audioSrc);
-      audio.play().catch(err => {
-        console.warn('🔊 音声再生失敗、フォールバック:', err);
+      audio.load(); // モバイル対応
+      try {
+        await audio.play();
+        console.log('🔊 Gemini TTS再生成功');
+      } catch (err) {
+        console.warn('🔊 音声再生失敗、フォールバック:', err.message);
         speakFallback(text);
-      });
+      }
       return;
     }
 
