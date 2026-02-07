@@ -494,6 +494,8 @@ const API_URL_TTS = '/api/tts';
 
 // AudioContext（モバイル対応用）
 let audioContext = null;
+// モバイル用：事前にプリウォームしたAudio
+let pendingAudio = null;
 
 function getAudioContext() {
   if (!audioContext) {
@@ -512,6 +514,24 @@ function unlockAudioContext() {
   } catch (e) {
     console.warn('AudioContext解禁失敗:', e);
   }
+}
+
+// ユーザータップ時にAudioをプリウォーム（モバイル対策）
+function prewarmAudio() {
+  unlockAudioContext();
+  // 空のAudioを作成し、play()を試みることで権限を確保
+  pendingAudio = new Audio();
+  pendingAudio.volume = 0.01; // ほぼ無音
+  // 極小の無音データ（48kHz, 16bit, モノラル, 0.01秒）
+  const silentWav = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+  pendingAudio.src = silentWav;
+  pendingAudio.play().then(() => {
+    console.log('🔊 Audio prewarm成功');
+    pendingAudio.pause();
+    pendingAudio.volume = 1.0;
+  }).catch(e => {
+    console.warn('🔊 Audio prewarm失敗:', e.message);
+  });
 }
 
 // 初回タップでAudioContextを解禁
@@ -542,7 +562,11 @@ async function speak(text) {
     if (data.success && data.audio) {
       // Base64音声データをAudioで再生
       const audioSrc = `data:audio/wav;base64,${data.audio}`;
-      const audio = new Audio(audioSrc);
+
+      // プリウォームしたAudioがあれば再利用、なければ新規作成
+      const audio = pendingAudio || new Audio();
+      pendingAudio = null; // 使用済み
+      audio.src = audioSrc;
       audio.load(); // モバイル対応
       try {
         await audio.play();
@@ -606,7 +630,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnStart) btnStart.addEventListener('click', () => startCamera(useBack));
   if (btnCapture) btnCapture.addEventListener('click', () => captureAndSendToAI());
-  if (btnShutter) btnShutter.addEventListener('click', () => captureAndSendToAI());
+  if (btnShutter) {
+    // モバイル対策: touchstart時にAudioをプリウォーム
+    btnShutter.addEventListener('touchstart', prewarmAudio, { passive: true });
+    btnShutter.addEventListener('click', () => captureAndSendToAI());
+  }
   if (btnSwitch) btnSwitch.addEventListener('click', flipCamera);
   if (btnSendText) btnSendText.addEventListener('click', sendText);
   if (btnReset) btnReset.addEventListener('click', resetSession);
