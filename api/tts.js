@@ -50,6 +50,8 @@ function addWavHeader(pcmBase64, sampleRate = 24000, channels = 1, bitsPerSample
 
 export default async (req, res) => {
   console.log('🎤 [TTS] API呼び出し開始');
+  console.log('🔑 [TTS] GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
+  console.log('🔑 [TTS] GEMINI_API_KEY prefix:', process.env.GEMINI_API_KEY?.substring(0, 10) + '...');
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -101,7 +103,9 @@ export default async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [TTS] エラー:', error);
+    console.error('❌ [TTS] エラー:', error.message);
+    console.error('❌ [TTS] スタック:', error.stack);
+    console.error('❌ [TTS] 詳細:', JSON.stringify(error, null, 2));
     res.status(500).json({
       error: 'TTS処理に失敗しました',
       details: error.message
