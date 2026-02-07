@@ -547,8 +547,10 @@ async function speak(text) {
       try {
         await audio.play();
         console.log('🔊 Gemini TTS再生成功');
+        showToast('🔊 Gemini TTS'); // デバッグ用
       } catch (err) {
         console.warn('🔊 音声再生失敗、フォールバック:', err.message);
+        showToast('⚠️ フォールバック: ' + err.message); // デバッグ用
         speakFallback(text);
       }
       return;
@@ -558,6 +560,7 @@ async function speak(text) {
 
   } catch (error) {
     console.warn('🔊 Gemini TTS失敗、Web Speech APIへフォールバック:', error.message);
+    showToast('❌ TTS失敗: ' + error.message); // デバッグ用
     speakFallback(text);
   }
 }
