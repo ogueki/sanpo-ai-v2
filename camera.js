@@ -561,7 +561,7 @@ async function speak(text) {
 
     if (data.success && data.audio) {
       // Base64音声データをAudioで再生
-      const audioSrc = `data:audio/wav;base64,${data.audio}`;
+      const audioSrc = `data:${data.mimeType || 'audio/mpeg'};base64,${data.audio}`;
 
       // プリウォームしたAudioがあれば再利用、なければ新規作成
       const audio = pendingAudio || new Audio();
