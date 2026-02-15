@@ -287,8 +287,14 @@ async function sendToUnifiedAI(text, newImage = null) {
 
     console.log(`✅ AI応答受信`);
 
+    // テキスト表示と音声再生を同期させる
+    // 先にTTS音声を準備し、準備できたらテキスト表示+再生を同時に行う
+    showLoadingIndicator('🔊 音声準備中...');
+    const audio = await prepareAudio(answer);
     appendChat(text, answer);
-    speak(answer);
+    if (audio) {
+      try { await audio.play(); } catch (e) { console.warn('再生失敗:', e); speakFallback(answer); }
+    }
 
   } catch (error) {
     console.error('❌ AI処理エラー:', error);
@@ -539,14 +545,16 @@ function prewarmAudio() {
   document.addEventListener(event, unlockAudioContext, { once: true });
 });
 
-async function speak(text) {
-  if (!text || text.trim().length === 0) return;
+/**
+ * TTS音声を準備して再生可能なAudioオブジェクトを返す（まだ再生しない）
+ * @returns {Promise<HTMLAudioElement|null>} 再生準備済みのAudio、失敗時はnull
+ */
+async function prepareAudio(text) {
+  if (!text || text.trim().length === 0) return null;
 
-  // AudioContextを念のため解禁
   unlockAudioContext();
 
   try {
-    // Gemini TTS APIを呼び出し
     const response = await fetch(API_URL_TTS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -560,31 +568,36 @@ async function speak(text) {
     const data = await response.json();
 
     if (data.success && data.audio) {
-      // Base64音声データをAudioで再生
       const audioSrc = `data:${data.mimeType || 'audio/mpeg'};base64,${data.audio}`;
-
-      // プリウォームしたAudioがあれば再利用、なければ新規作成
       const audio = pendingAudio || new Audio();
-      pendingAudio = null; // 使用済み
+      pendingAudio = null;
       audio.src = audioSrc;
-      audio.load(); // モバイル対応
-      try {
-        await audio.play();
-        console.log('🔊 Gemini TTS再生成功');
-        showToast('🔊 Gemini TTS'); // デバッグ用
-      } catch (err) {
-        console.warn('🔊 音声再生失敗、フォールバック:', err.message);
-        showToast('⚠️ フォールバック: ' + err.message); // デバッグ用
-        speakFallback(text);
-      }
-      return;
+
+      // 音声データの読み込み完了を待つ
+      await new Promise((resolve, reject) => {
+        audio.oncanplaythrough = resolve;
+        audio.onerror = reject;
+        audio.load();
+      });
+
+      console.log('🔊 TTS音声準備完了');
+      return audio;
     }
 
     throw new Error('音声データなし');
 
   } catch (error) {
-    console.warn('🔊 Gemini TTS失敗、Web Speech APIへフォールバック:', error.message);
-    showToast('❌ TTS失敗: ' + error.message); // デバッグ用
+    console.warn('🔊 TTS失敗、フォールバック使用:', error.message);
+    return null; // nullの場合はフォールバック
+  }
+}
+
+// speak は後方互換のためにも残す
+async function speak(text) {
+  const audio = await prepareAudio(text);
+  if (audio) {
+    try { await audio.play(); } catch (e) { speakFallback(text); }
+  } else {
     speakFallback(text);
   }
 }
