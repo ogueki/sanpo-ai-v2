@@ -31,7 +31,7 @@ export default async (req, res) => {
     // OpenAI TTS で音声生成（opusで直接返す）
     const response = await getOpenAI().audio.speech.create({
       model: 'tts-1',
-      voice: 'shimmer',
+      voice: 'nova',
       input: text,
       response_format: 'opus',
       speed: 1.0
