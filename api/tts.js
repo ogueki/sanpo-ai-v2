@@ -49,7 +49,7 @@ export default async (req, res) => {
     res.json({
       success: true,
       audio: base64Audio,
-      mimeType: 'audio/opus'
+      mimeType: 'audio/ogg'
     });
 
   } catch (error) {
