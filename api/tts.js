@@ -28,12 +28,12 @@ export default async (req, res) => {
 
     console.log(`🎤 [TTS] テキスト: "${text.substring(0, 50)}..."`);
 
-    // OpenAI TTS で音声生成（mp3で直接返す）
+    // OpenAI TTS で音声生成（opusで直接返す）
     const response = await getOpenAI().audio.speech.create({
       model: 'tts-1',
-      voice: 'nova',
+      voice: 'coral',
       input: text,
-      response_format: 'mp3',
+      response_format: 'opus',
       speed: 1.0
     });
 
@@ -45,11 +45,11 @@ export default async (req, res) => {
     const elapsed = Date.now() - startTime;
     console.log(`✅ [TTS] 音声生成成功 (${elapsed}ms, ${buffer.length} bytes)`);
 
-    // Base64エンコードされたMP3音声データを返す
+    // Base64エンコードされたOpus音声データを返す
     res.json({
       success: true,
       audio: base64Audio,
-      mimeType: 'audio/mpeg'
+      mimeType: 'audio/opus'
     });
 
   } catch (error) {
